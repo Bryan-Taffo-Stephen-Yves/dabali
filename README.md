@@ -59,7 +59,7 @@ npx supabase functions deploy redeem-ticket
 Postgres ≥ 15 et Node ≥ 22.18 suffisent (les tests simulent `auth.uid()` et les rôles Supabase) :
 
 ```bash
-PGHOST=localhost PGUSER=postgres supabase/tests/run.sh      # 184 vérifications SQL + QR + concurrence
+PGHOST=localhost PGUSER=postgres supabase/tests/run.sh      # 191 vérifications SQL + QR + concurrence
 SUPABASE_URL=… SUPABASE_ANON_KEY=… scripts/smoke-remote.sh  # bout en bout contre le projet (consomme un ticket de démo)
 python -m pytest vision/ -q                                 # module vision
 ```
