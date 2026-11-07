@@ -112,7 +112,9 @@ begin
 
   insert into public.extras (name, price, kind, sort) values
     ('Salade de fruits', 500, 'dessert', 1), ('Yaourt', 500, 'dessert', 2), ('Gâteau', 500, 'dessert', 3),
-    ('Bissap', 300, 'drink', 4), ('Gnamakoudji', 300, 'drink', 5), ('Eau minérale', 200, 'drink', 6);
+    ('Orange (coupée en 4)', 200, 'dessert', 4), ('Pastèque (une part)', 300, 'dessert', 5),
+    ('Ananas (2 tranches)', 300, 'dessert', 6), ('Mangue (2 tranches)', 300, 'dessert', 7),
+    ('Bissap', 300, 'drink', 14), ('Gnamakoudji', 300, 'drink', 15), ('Eau minérale', 200, 'drink', 16);
 
   -- ───────────── Stock & recettes ─────────────
   insert into public.ingredients (name, unit, stock_qty, alert_threshold, unit_cost) values

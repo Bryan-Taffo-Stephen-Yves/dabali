@@ -161,24 +161,33 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
 
         {!out && (
           <Block title="Options">
-            <div className="space-y-2">
-              {extras.map((e) => {
-                const on = picked.includes(e.id);
-                const free = e.id === freeDessertId;
-                return (
-                  <button key={e.id} onClick={() => toggle(e)}
-                    className={clsx("flex w-full items-center gap-3 rounded-2xl border-2 bg-card px-4 py-3 text-left transition",
-                      on ? "border-ink" : "border-transparent shadow-[var(--shadow-card)]")}>
-                    <span className={clsx("grid size-6 place-items-center rounded-lg border-2", on ? "border-ink bg-ink" : "border-line")}>
-                      {on && <Check className="size-4 text-lime" strokeWidth={3} />}
-                    </span>
-                    <span className="flex-1 font-semibold">{e.name}<span className="ml-2 text-xs font-medium text-muted">{e.kind === "dessert" ? "Dessert" : e.kind === "drink" ? "Boisson" : ""}</span></span>
-                    <span className={clsx("font-bold", free && "text-muted line-through")}>+{fcfa(e.price)}</span>
-                    {free && <span className="rounded-full bg-lime px-2 py-0.5 text-xs font-extrabold">Offert</span>}
-                  </button>
-                );
-              })}
-            </div>
+            {([["dessert", "Desserts", "un au choix"], ["drink", "Boissons", "une au choix"], ["other", "Autres", ""]] as const).map(([kind, title, hint]) => {
+              const group = extras.filter((e) => e.kind === kind);
+              if (!group.length) return null;
+              return (
+                <div key={kind} className="mb-4 last:mb-0">
+                  <p className="mb-2 flex items-baseline gap-2 text-[13px] font-extrabold text-ink-2">{title}{hint && <span className="text-xs font-medium text-muted">{hint}</span>}</p>
+                  <div className="space-y-2">
+                    {group.map((e) => {
+                      const on = picked.includes(e.id);
+                      const free = e.id === freeDessertId;
+                      return (
+                        <button key={e.id} onClick={() => toggle(e)}
+                          className={clsx("flex w-full items-center gap-3 rounded-2xl border-2 bg-card px-4 py-3 text-left transition",
+                            on ? "border-ink" : "border-transparent shadow-[var(--shadow-card)]")}>
+                          <span className={clsx("grid size-6 shrink-0 place-items-center rounded-full border-2", on ? "border-ink bg-ink" : "border-line")}>
+                            {on && <Check className="size-4 text-lime" strokeWidth={3} />}
+                          </span>
+                          <span className="flex-1 font-semibold">{e.name}</span>
+                          <span className={clsx("font-bold", free && "text-muted line-through")}>+{fcfa(e.price)}</span>
+                          {free && <span className="rounded-full bg-lime px-2 py-0.5 text-xs font-extrabold">Offert</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
             {canReward && (
               <button onClick={() => setUseReward((v) => !v)}
                 className={clsx("mt-3 flex w-full items-center gap-3 rounded-2xl p-3.5 text-left transition", useReward ? "bg-lime" : "bg-lime-soft")}>
