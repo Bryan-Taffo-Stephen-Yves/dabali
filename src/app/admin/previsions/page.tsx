@@ -98,7 +98,7 @@ export default function ForecastPage() {
                               {i.basis !== "dish" && <span className="text-[11px] text-muted">a priori</span>}
                             </span>
                           </td>
-                          <td className="px-2 text-right text-muted">{i.share} %</td>
+                          <td className="whitespace-nowrap px-2 text-right text-muted">{i.share} %</td>
                           <td className="px-2 text-right">{i.expected}</td>
                           <td className="px-2 text-right"><span className="rounded-lg bg-lime px-2 py-1 font-extrabold">{i.recommended}</span></td>
                           <td className="px-5 text-right">{i.planned ?? "∞"} {over && <Badge tone="warn">trop</Badge>}{under && <Badge tone="err">pas assez</Badge>}</td>
