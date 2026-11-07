@@ -11,7 +11,7 @@ import type { ServiceKind } from "@/lib/types";
 
 type F = {
   services: { service: ServiceKind; label: string; history: number | null; outstanding: number; expected: number; basis: string }[];
-  items: { id: string; service: ServiceKind; dish: string; planned: number | null; share: number; expected: number; recommended: number; basis: string }[];
+  items: { id: string; service: ServiceKind; dish: string; planned: number | null; share: number; expected: number; recommended: number; basis: string; popularity: number; observed: number | null; days: number; prior: number; stars: number | null }[];
   ingredients: { id: string; name: string; unit: string; stock: number; need: number; to_buy: number; cost: number }[];
 };
 
@@ -76,21 +76,28 @@ export default function ForecastPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-y border-line bg-canvas text-left text-xs font-bold uppercase tracking-wider text-muted">
-                <th className="px-5 py-2.5">Plat</th><th className="px-2 text-right">Part</th><th className="px-2 text-right">Attendus</th>
+                <th className="px-5 py-2.5">Plat</th><th className="px-2">Popularité</th><th className="px-2 text-right">Part</th><th className="px-2 text-right">Attendus</th>
                 <th className="px-2 text-right">À préparer</th><th className="px-5 text-right">Prévu au menu</th></tr></thead>
               <tbody>
-                {f?.items.length === 0 && <tr><td colSpan={5} className="p-5"><Empty>Pas de menu ce jour-là</Empty></td></tr>}
+                {f?.items.length === 0 && <tr><td colSpan={6} className="p-5"><Empty>Pas de menu ce jour-là</Empty></td></tr>}
                 {f?.services.map((s) => {
                   const rows = f.items.filter((i) => i.service === s.service);
                   if (!rows.length) return null;
                   return [
-                    <tr key={s.service}><td colSpan={5} className="px-5 pb-1 pt-4 text-xs font-extrabold uppercase tracking-wider text-muted">{s.label} · {s.expected} repas attendus</td></tr>,
+                    <tr key={s.service}><td colSpan={6} className="px-5 pb-1 pt-4 text-xs font-extrabold uppercase tracking-wider text-muted">{s.label} · {s.expected} repas attendus</td></tr>,
                     ...rows.map((i) => {
                       const over = i.planned != null && i.planned > i.recommended * 1.25;
                       const under = i.planned != null && i.planned < i.expected;
                       return (
                         <tr key={i.id} className="border-b border-line last:border-0">
-                          <td className="px-5 py-3 font-bold">{i.dish}{i.basis !== "dish" && <span className="ml-2 text-xs font-medium text-muted">(nouveau)</span>}</td>
+                          <td className="px-5 py-3 font-bold">{i.dish}</td>
+                          <td className="px-2" title={i.basis === "dish" ? `Choix au comptoir sur ${i.days} services (×${i.observed}), a priori ×${i.prior}` : `Peu d'historique : popularité de départ ×${i.prior}`}>
+                            <span className="flex items-center gap-2">
+                              <span className="h-1.5 w-16 overflow-hidden rounded-full bg-canvas"><span className={clsx("block h-full rounded-full", i.popularity >= 1.1 ? "bg-ok" : i.popularity <= 0.85 ? "bg-warn" : "bg-ink/40")} style={{ width: `${Math.min(100, (i.popularity / 1.6) * 100)}%` }} /></span>
+                              <span className="text-xs font-bold">×{num(i.popularity)}</span>
+                              {i.basis !== "dish" && <span className="text-[11px] text-muted">a priori</span>}
+                            </span>
+                          </td>
                           <td className="px-2 text-right text-muted">{i.share} %</td>
                           <td className="px-2 text-right">{i.expected}</td>
                           <td className="px-2 text-right"><span className="rounded-lg bg-lime px-2 py-1 font-extrabold">{i.recommended}</span></td>
@@ -104,7 +111,7 @@ export default function ForecastPage() {
             </table>
           </div>
           <p className="flex gap-2 border-t border-line px-5 py-3 text-xs text-muted"><Info className="size-4 shrink-0" />
-            Repas attendus = moyenne des 4 mêmes jours de semaine (au moins les tickets en circulation). Répartition entre plats = choix faits au comptoir quand ces plats étaient servis. + 5 % de marge.</p>
+            Repas attendus = moyenne des 4 mêmes jours de semaine (au moins les tickets en circulation). Répartition entre plats = popularité de chaque plat : choix réels au comptoir sur 8 semaines (majorés quand le plat était épuisé), mélangés à une popularité de départ réglable dans Plats, et ajustés par les avis. + 5 % de marge.</p>
         </Card>
 
         <Card title="Liste de courses" subtitle="Besoins des recettes vs stock (seuil d'alerte conservé)"

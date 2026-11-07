@@ -14,8 +14,8 @@ import type { Dish } from "@/lib/types";
 type Cat = { id: number; name: string };
 type Ing = { id: string; name: string; unit: string };
 type Line = { ingredient_id: string; qty_per_portion: number };
-type D = Dish & { is_active: boolean };
-const EMPTY: Partial<D> = { photo_credit: null, photo_source: null, name: "", description: "", composition: "", kcal: null, weight_g: null, allergens: [], base_price: 2000, is_active: true, category_id: null, photo_url: null };
+type D = Dish & { is_active: boolean; popularity_prior: number };
+const EMPTY: Partial<D> = { photo_credit: null, photo_source: null, name: "", description: "", composition: "", kcal: null, weight_g: null, allergens: [], base_price: 2000, is_active: true, category_id: null, photo_url: null, popularity_prior: 1 };
 
 export default function DishesPage() {
   const toast = useToast();
@@ -65,7 +65,7 @@ export default function DishesPage() {
       name: edit.name.trim(), category_id: edit.category_id, description: edit.description || null, composition: edit.composition || null,
       kcal: edit.kcal || null, weight_g: edit.weight_g || null, allergens: edit.allergens ?? [], photo_url: edit.photo_url || null,
       photo_credit: edit.photo_credit || null, photo_source: edit.photo_source || null,
-      base_price: edit.base_price, is_active: edit.is_active ?? true, updated_at: new Date().toISOString(),
+      base_price: edit.base_price, is_active: edit.is_active ?? true, popularity_prior: edit.popularity_prior ?? 1, updated_at: new Date().toISOString(),
     };
     const res = edit.id ? await sb.from("dishes").update(payload).eq("id", edit.id).select("id").single()
       : await sb.from("dishes").insert(payload).select("id").single();
@@ -133,6 +133,18 @@ export default function DishesPage() {
             <input value={edit.composition ?? ""} onChange={(e) => setEdit({ ...edit, composition: e.target.value })} placeholder="Composition (attiéké, poisson…)" className={clsx(input, "w-full")} />
             <input value={(edit.allergens ?? []).join(", ")} onChange={(e) => setEdit({ ...edit, allergens: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} placeholder="Allergènes (séparés par des virgules)" className={clsx(input, "w-full")} />
 
+            <div className="rounded-xl bg-canvas p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-extrabold">Popularité de départ</p>
+                <span className="rounded-lg bg-ink px-2 py-0.5 text-xs font-extrabold text-lime">
+                  ×{(edit.popularity_prior ?? 1).toFixed(2)} · {popLabel(edit.popularity_prior ?? 1)}
+                </span>
+              </div>
+              <input type="range" min={0.3} max={2} step={0.05} value={edit.popularity_prior ?? 1}
+                onChange={(e) => setEdit({ ...edit, popularity_prior: +e.target.value })} className="mt-2 w-full accent-[#16181D]" />
+              <p className="text-xs text-muted">Sert aux prévisions tant que le plat a peu d&apos;historique ; ensuite les choix réels au comptoir prennent le relais.</p>
+            </div>
+
             <div>
               <p className="mb-2 text-sm font-extrabold">Recette (par portion)</p>
               <div className="space-y-2">
@@ -157,4 +169,8 @@ export default function DishesPage() {
       </Sheet>
     </>
   );
+}
+
+function popLabel(p: number) {
+  return p >= 1.3 ? "très demandé" : p >= 1.1 ? "apprécié" : p > 0.9 ? "moyen" : p > 0.7 ? "peu demandé" : "rarement choisi";
 }

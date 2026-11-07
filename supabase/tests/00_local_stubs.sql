@@ -44,3 +44,7 @@ create function auth.uid() returns uuid language sql stable as $$
                          (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')), '')::uuid
 $$;
 grant execute on function auth.uid() to anon, authenticated, service_role;
+
+-- Supabase Vault (clé Anthropic de l'assistant IA)
+create schema if not exists vault;
+create table if not exists vault.decrypted_secrets (name text, decrypted_secret text, created_at timestamptz default now());
