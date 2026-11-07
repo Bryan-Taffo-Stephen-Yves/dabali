@@ -105,10 +105,10 @@ begin
        'Placali, sauce kplala, poisson fumé, crabe', 650, 550, '{poisson,crustacés}', 2000),
     ('Foutou banane sauce graine', v_cat_jour, 'Foutou pilé maison, sauce graine au poulet.',
        'Foutou banane, sauce graine de palme, poulet, aubergine', 880, 600, '{}', 2500),
-    ('Spaghetti sautés', v_cat_veg, 'Spaghetti sautés aux légumes, sauce tomate maison.',
-       'Spaghetti, tomate, oignons, poivron, carotte, œuf', 640, 450, '{gluten,œuf}', 1500),
-    ('Salade composée', v_cat_veg, 'Crudités, avocat et œuf dur, vinaigrette citron.',
-       'Laitue, tomate, concombre, avocat, maïs, œuf dur', 380, 350, '{œuf,moutarde}', 1500);
+    ('Spaghetti sautés', v_cat_jour, 'Spaghetti sautés comme au maquis : sauce tomate pimentée, légumes croquants et saucisse.',
+       'Spaghetti, saucisse, tomate, poivron, carotte, oignons, piment', 640, 450, '{gluten}', 1500),
+    ('Salade composée', v_cat_veg, 'Salade fraîche et croquante, œufs durs, vinaigrette citron.',
+       'Laitue, concombre, maïs, carotte, chou rouge, œufs durs', 380, 350, '{œuf,moutarde}', 1500);
 
   insert into public.extras (name, price, kind, sort) values
     ('Salade de fruits', 500, 'dessert', 1), ('Yaourt', 500, 'dessert', 2), ('Gâteau', 500, 'dessert', 3),
