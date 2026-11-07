@@ -2,12 +2,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { ArrowLeft, Check, X, ShoppingCart, Zap, PartyPopper, Store } from "lucide-react";
+import { ArrowLeft, Check, X, ShoppingCart, Zap, PartyPopper, Store, Sparkles, Package } from "lucide-react";
 import { rpc, supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { fcfa } from "@/lib/format";
-import { LIST_COLUMNS, fetchItems, listCode, qtyLabel, type ShoppingItem, type ShoppingList } from "@/lib/shopping";
+import { LIST_COLUMNS, byAisle, fetchItems, listCode, organize, qtyLabel, type ShoppingItem, type ShoppingList } from "@/lib/shopping";
 
 // Écran de l'employé au supermarché : une seule liste, on coche, on note le prix, on termine.
 export default function ShopperPage() {
@@ -18,6 +18,7 @@ export default function ShopperPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ bought: number; missing: number; spent: number | null } | null>(null);
+  const [sorting, setSorting] = useState(false);
 
   const load = useCallback(async () => {
     const sb = supabase();
@@ -51,6 +52,16 @@ export default function ShopperPage() {
     setItems((l) => l.map((x) => (x.id === i.id ? { ...x, status, bought_qty: bought_qty ?? x.bought_qty, paid: paid ?? x.paid } : x)));
     const r = await rpc("shopping_check", { p_item_id: i.id, p_status: status, p_bought_qty: bought_qty ?? null, p_paid: paid ?? null });
     if (!r.ok) { toast("err", r.message); load(); }
+  }
+
+  async function sortAisles() {
+    if (!list) return;
+    setSorting(true);
+    const r = await organize(list.id);
+    setSorting(false);
+    if (!r.ok) return toast("err", r.message);
+    toast("ok", "Liste rangée par rayon.");
+    load();
   }
 
   async function finish() {
@@ -110,8 +121,23 @@ export default function ShopperPage() {
       {list && (
         <div className="space-y-3 p-4">
           {list.note && <p className="flex items-start gap-2 rounded-2xl bg-card p-3 text-sm font-semibold"><Store className="mt-0.5 size-4 shrink-0" />{list.note}</p>}
-          <p className="px-1 text-xs font-semibold text-muted">Budget estimé {fcfa(est)} · touchez un article pour le cocher</p>
-          {items.map((i) => {
+          <div className="flex items-center gap-2 px-1">
+            <p className="flex-1 text-xs font-semibold text-muted">Budget estimé {fcfa(est)} · touchez un article pour le cocher</p>
+            {(!list.organized_at || items.some((i) => !i.aisle)) && (
+              <button onClick={sortAisles} disabled={sorting} className="flex shrink-0 items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-xs font-bold text-lime disabled:opacity-60">
+                <Sparkles className={clsx("size-3.5", sorting && "animate-pulse")} />{sorting ? "Rangement…" : "Ranger par rayon"}
+              </button>
+            )}
+          </div>
+          {(list.organized_at ? byAisle(items) : [["", items] as [string, ShoppingItem[]]]).map(([aisle, group]) => (
+            <section key={aisle || "all"} className="space-y-2">
+              {aisle && (
+                <h2 className="flex items-center gap-2 px-1 pt-2 text-xs font-extrabold uppercase tracking-wider text-muted">
+                  {aisle}<span className="h-px flex-1 bg-line" />
+                  <span>{group.filter((i) => i.status !== "todo").length}/{group.length}</span>
+                </h2>
+              )}
+          {group.map((i) => {
             const expanded = open === i.id;
             return (
               <div key={i.id} className={clsx("overflow-hidden rounded-2xl border bg-card transition",
@@ -123,6 +149,7 @@ export default function ShopperPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className={clsx("block text-[15px] font-bold", i.status !== "todo" && "text-muted line-through")}>{i.label}</span>
+                    {i.pack_hint && i.status === "todo" && <span className="mt-0.5 flex items-center gap-1 text-[13px] font-semibold text-ink-2"><Package className="size-3.5 shrink-0 text-muted" />{i.pack_hint}</span>}
                     {i.urgent && <span className="flex items-center gap-1 text-xs font-bold text-[#b45309]"><Zap className="size-3" />Ajout urgent</span>}
                   </span>
                   <span className="text-right text-[15px] font-extrabold">{qtyLabel(i.bought_qty ?? i.qty, i.unit)}</span>
@@ -148,6 +175,8 @@ export default function ShopperPage() {
               </div>
             );
           })}
+            </section>
+          ))}
         </div>
       )}
 

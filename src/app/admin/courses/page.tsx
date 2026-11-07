@@ -1,13 +1,13 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
-import { RefreshCw, Plus, Send, Trash2, Zap, ShoppingCart, CheckCircle2, XCircle, Bot } from "lucide-react";
+import { RefreshCw, Plus, Send, Trash2, Zap, ShoppingCart, CheckCircle2, XCircle, Bot, Sparkles, Package } from "lucide-react";
 import { rpc, supabase } from "@/lib/supabase/client";
 import { Card, PageTitle, Badge, Empty, Kpi, input } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { fcfa, dateTime } from "@/lib/format";
-import { LIST_COLUMNS, STATUS_LABEL, fetchItems, listCode, qtyLabel, type ShoppingItem, type ShoppingList } from "@/lib/shopping";
+import { LIST_COLUMNS, STATUS_LABEL, byAisle, fetchItems, listCode, organize, qtyLabel, type ShoppingItem, type ShoppingList } from "@/lib/shopping";
 
 type Staff = { id: string; full_name: string; role: string };
 type Ing = { id: string; name: string; unit: string };
@@ -69,10 +69,23 @@ export default function ShoppingAdmin() {
     if (done) setForm({ label: "", qty: "", unit: "pièce" });
   }
 
+  async function sortAisles(listId: string, silent = false) {
+    setBusy("sort");
+    const r = await organize(listId);
+    setBusy(null);
+    if (!r.ok) { if (!silent) toast("err", r.message); return; }
+    if (!silent) toast("ok", `${r.organized} articles rangés par rayon.`);
+    load();
+  }
+
   async function assign() {
     if (!open || !assignee) return;
+    const unsorted = !open.organized_at || openItems.some((i) => !i.aisle);
     const ok = await call("assign", "shopping_assign", { p_list_id: open.id, p_user_id: assignee, p_note: note || null });
-    if (ok) { toast("ok", `Fiche ${listCode(open.num)} envoyée à ${staff.find((s) => s.id === assignee)?.full_name}.`); setNote(""); }
+    if (ok) {
+      toast("ok", `Fiche ${listCode(open.num)} envoyée à ${staff.find((s) => s.id === assignee)?.full_name}.`); setNote("");
+      if (unsorted) sortAisles(open.id, true); // l'acheteur reçoit une liste déjà rangée par rayon
+    }
   }
 
   const addForm = (listId?: string) => (
@@ -108,11 +121,18 @@ export default function ShoppingAdmin() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <Card title={open ? `Prochaine fiche · ${listCode(open.num)}` : "Prochaine fiche"} pad={false}
+          action={open && openItems.length > 0 && (
+            <button onClick={() => sortAisles(open.id)} disabled={busy === "sort"} className="mr-5 flex items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-xs font-bold text-lime disabled:opacity-60">
+              <Sparkles className={clsx("size-3.5", busy === "sort" && "animate-pulse")} />{busy === "sort" ? "Rangement…" : "Ranger par rayon (IA)"}
+            </button>
+          )}
           subtitle="Lignes auto : stock sous le seuil ou menus des 2 prochains jours. Modifiez une quantité : elle ne sera plus recalculée.">
           <div className="divide-y divide-line">
             {lists === null && <div className="m-5 h-40 animate-pulse rounded-xl bg-canvas" />}
             {lists && openItems.length === 0 && <div className="p-5"><Empty>Rien à acheter pour l&apos;instant 👌</Empty></div>}
-            {openItems.map((i) => (
+            {(open?.organized_at ? byAisle(openItems) : [["", openItems] as [string, ShoppingItem[]]]).map(([aisle, group]) => [
+              aisle ? <p key={`h-${aisle}`} className="bg-canvas/60 px-5 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-muted">{aisle}</p> : null,
+              ...group.map((i) => (
               <div key={i.id} className="flex items-center gap-3 px-5 py-3">
                 <span className={clsx("grid size-8 shrink-0 place-items-center rounded-lg", i.source === "auto" ? "bg-ink text-lime" : "bg-canvas")}>
                   {i.source === "auto" ? <Bot className="size-4" /> : <Plus className="size-4" />}
@@ -120,6 +140,7 @@ export default function ShoppingAdmin() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{i.label}</p>
                   <p className="truncate text-xs text-muted">{i.reason}</p>
+                  {i.pack_hint && <p className="flex items-center gap-1 truncate text-xs font-semibold text-ink-2"><Package className="size-3 shrink-0" />{i.pack_hint}</p>}
                 </div>
                 <input type="number" defaultValue={i.qty} step="0.5" min={0} key={`${i.id}-${i.qty}`}
                   onBlur={(e) => { const v = +e.target.value; if (v !== Number(i.qty)) call("qty", "shopping_set_qty", { p_item_id: i.id, p_qty: v }); }}
@@ -128,7 +149,8 @@ export default function ShoppingAdmin() {
                 <span className="hidden w-24 text-right text-sm font-semibold sm:block">{i.est_cost ? fcfa(i.est_cost) : "—"}</span>
                 <button onClick={() => call("qty", "shopping_set_qty", { p_item_id: i.id, p_qty: 0 })} aria-label="Retirer" className="text-off hover:text-err"><Trash2 className="size-4" /></button>
               </div>
-            ))}
+            )),
+            ])}
           </div>
           <div className="space-y-3 border-t border-line bg-canvas/60 px-5 py-4">
             {addForm()}
