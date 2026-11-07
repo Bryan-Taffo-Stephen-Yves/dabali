@@ -64,10 +64,12 @@ export function OccupancyCard() {
           </span>
         </div>
         <p className="mt-1 text-sm text-ink-2">
-          <b>{Math.round(o.rate)}&nbsp;% plein</b> · ~{o.wait_min}&nbsp;min d&apos;attente
+          {o.queue_count != null
+            ? <><b>{o.queue_count === 0 ? "Pas de file" : `${o.queue_count} dans la file`}</b> · {o.queue_count === 0 ? "servi tout de suite" : <>~{o.wait_min}&nbsp;min d&apos;attente</>}</>
+            : <><b>{Math.round(o.rate)}&nbsp;% plein</b> · ~{o.wait_min}&nbsp;min d&apos;attente</>}
         </p>
         <p className="mt-1 flex items-center gap-3 text-xs text-muted">
-          <span className="flex items-center gap-1"><Users className="size-3.5" />{o.occupied_tables}/{o.total_tables} tables</span>
+          <span className="flex items-center gap-1"><Users className="size-3.5" />{o.occupied_tables}/{o.total_tables} tables{o.queue_count != null ? ` · ${Math.round(o.rate)} %` : ""}</span>
           <span className="flex items-center gap-1"><Clock3 className="size-3.5" />{o.source === "vision" ? "en direct" : "estimation"}</span>
         </p>
       </div>

@@ -70,4 +70,5 @@ export type Occupancy =
   | {
       status: "open"; room: string; service: ServiceKind; rate: number; level: "low" | "mid" | "high";
       occupied_tables: number; total_tables: number; wait_min: number; source: "vision" | "scans"; updated_at: string;
+      queue_count?: number | null; wait_source?: "queue" | "estimate";
     };

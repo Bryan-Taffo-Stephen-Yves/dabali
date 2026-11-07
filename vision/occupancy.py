@@ -1,5 +1,9 @@
 """
-Dabali — module vision : taux d'occupation des tables du réfectoire (§7).
+Dabali — module vision : taux d'occupation des tables et longueur de la file d'attente du réfectoire (§7).
+
+Source vidéo : webcam, vidéo, ou téléphone posé dans un angle avec l'appli « IP Webcam » (Android) :
+  python occupancy.py --source http://192.168.1.20:8080/video
+Zones (tables, file d'attente, comptoir) dessinées avec calibrate.py.
 
   python occupancy.py                  # tourne en continu, envoie les chiffres à Supabase
   python occupancy.py --preview        # + fenêtre de démo (boîtes et zones colorées)
@@ -17,6 +21,7 @@ import json
 import os
 import sys
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,6 +38,7 @@ SEND_EVERY_S = 10.0     # 1 relevé envoyé toutes les 10 s
 OCCUPY_AFTER_S = 30.0   # table occupée après 30 s de présence continue
 FREE_AFTER_S = 60.0     # libérée après 60 s sans personne (anti-clignotement)
 CONF = 0.35
+QUEUE_SMOOTH = 5        # file d'attente : médiane des 5 dernières images (~10 s) contre les passages ponctuels
 
 
 @dataclass
@@ -65,27 +71,39 @@ class Table:
 class Room:
     tables: list[Table]
     frame_size: tuple[int, int]
+    queue: list[np.ndarray] = field(default_factory=list)     # zones « file d'attente » (couloir)
+    counter: list[np.ndarray] = field(default_factory=list)   # zones « comptoir »
     people_count: int = 0
+    queue_count: int | None = None
+    counter_count: int = 0
+    queue_history: deque = field(default_factory=lambda: deque(maxlen=QUEUE_SMOOTH))
     last_boxes: list[tuple[int, int, int, int]] = field(default_factory=list)
 
     @classmethod
     def load(cls, path: Path) -> "Room":
         cfg = json.loads(path.read_text(encoding="utf-8"))
+        poly = lambda z: np.array(z["polygon"], dtype=np.int32)
         return cls(
-            tables=[Table(t["id"], np.array(t["polygon"], dtype=np.int32)) for t in cfg["tables"]],
+            tables=[Table(t["id"], poly(t)) for t in cfg.get("tables", [])],
             frame_size=tuple(cfg.get("frame_size", (1280, 720))),
+            queue=[poly(z) for z in cfg.get("queue", [])],
+            counter=[poly(z) for z in cfg.get("counter", [])],
         )
 
     def snapshot(self) -> dict:
         occupied = sum(t.occupied for t in self.tables)
         total = len(self.tables)
-        return {
+        snap = {
             "occupied_tables": occupied,
             "total_tables": total,
             "rate": round(100 * occupied / total, 2) if total else 0,
             "people_count": self.people_count,
             "table_states": {t.id: t.occupied for t in self.tables},
         }
+        if self.queue:  # seulement si une file d'attente a été délimitée
+            snap["queue_count"] = self.queue_count or 0
+            snap["counter_count"] = self.counter_count
+        return snap
 
 
 def detect_people(model, frame: np.ndarray) -> list[tuple[int, int, int, int]]:
@@ -96,17 +114,26 @@ def detect_people(model, frame: np.ndarray) -> list[tuple[int, int, int, int]]:
 def assign(room: Room, boxes: list[tuple[int, int, int, int]], scale: tuple[float, float], now: float) -> None:
     """Une personne appartient à une table si le point bas-centre de sa boîte (ses pieds / sa chaise) est dans le polygone."""
     sx, sy = scale
+    inside = lambda poly, pt: cv2.pointPolygonTest(poly, pt, False) >= 0
     counts = {t.id: 0 for t in room.tables}
+    in_queue = at_counter = 0
     for x1, y1, x2, y2 in boxes:
         foot = (float((x1 + x2) / 2 * sx), float(y2 * sy))
-        for t in room.tables:
-            if cv2.pointPolygonTest(t.polygon, foot, False) >= 0:
-                counts[t.id] += 1
-                break
+        table = next((t for t in room.tables if inside(t.polygon, foot)), None)
+        if table:
+            counts[table.id] += 1
+        elif any(inside(q, foot) for q in room.queue):
+            in_queue += 1
+        elif any(inside(c, foot) for c in room.counter):
+            at_counter += 1
     for t in room.tables:
         t.update(counts[t.id], now)
     room.people_count = len(boxes)
     room.last_boxes = boxes
+    if room.queue:
+        room.queue_history.append(in_queue)
+        room.queue_count = int(np.median(room.queue_history))
+        room.counter_count = at_counter
 
 
 def send(snapshot: dict, room_id: str) -> None:
@@ -133,11 +160,20 @@ def draw_preview(frame: np.ndarray, room: Room, scale: tuple[float, float]) -> n
         cv2.polylines(view, [pts], True, color, 2)
         x, y = pts[0]
         cv2.putText(view, f"{t.id}{' *' if t.people else ''}", (int(x) + 6, int(y) + 22), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    for zones, color, label in ((room.queue, (11, 158, 245), "File"), (room.counter, (246, 130, 59), "Comptoir")):
+        for poly in zones:
+            pts = (poly * np.array(inv)).astype(np.int32)
+            cv2.fillPoly(overlay, [pts], color)
+            cv2.polylines(view, [pts], True, color, 2)
+            x, y = pts[0]
+            cv2.putText(view, label, (int(x) + 6, int(y) + 22), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
     view = cv2.addWeighted(overlay, 0.25, view, 0.75, 0)
     for x1, y1, x2, y2 in room.last_boxes:
         cv2.rectangle(view, (x1, y1), (x2, y2), (53, 241, 200), 2)  # vert citron
     s = room.snapshot()
     banner = f"Occupation {s['rate']:.0f}%  |  {s['occupied_tables']}/{s['total_tables']} tables  |  {s['people_count']} personnes"
+    if "queue_count" in s:
+        banner += f"  |  file : {s['queue_count']}"
     cv2.rectangle(view, (0, 0), (view.shape[1], 40), (29, 24, 22), -1)
     cv2.putText(view, banner, (12, 27), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (53, 241, 200), 2)
     cv2.putText(view, "Zone d'analyse de l'affluence - aucune image conservee", (12, view.shape[0] - 14),
@@ -172,7 +208,7 @@ def main() -> None:
     cap = open_source(args.source)
     is_file = Path(args.source).is_file()
     last_frame = last_send = 0.0
-    print(f"Analyse de {len(room.tables)} tables · 1 image / {FRAME_EVERY_S:.0f} s · envoi / {SEND_EVERY_S:.0f} s")
+    print(f"Analyse de {len(room.tables)} tables, {len(room.queue)} zone(s) de file · 1 image / {FRAME_EVERY_S:.0f} s · envoi / {SEND_EVERY_S:.0f} s")
 
     while True:
         ok, frame = cap.read()
@@ -199,7 +235,8 @@ def main() -> None:
                 else:
                     try:
                         send(snap, room_id)
-                        print(f"{time.strftime('%H:%M:%S')} → {snap['rate']:.0f} % ({snap['occupied_tables']}/{snap['total_tables']}), {snap['people_count']} pers.")
+                        queue = f", file {snap['queue_count']}" if "queue_count" in snap else ""
+                        print(f"{time.strftime('%H:%M:%S')} → {snap['rate']:.0f} % ({snap['occupied_tables']}/{snap['total_tables']}), {snap['people_count']} pers.{queue}")
                     except requests.RequestException as e:
                         print(f"Envoi impossible ({e}) — l'appli se rabat sur l'estimation par les scans.")
 

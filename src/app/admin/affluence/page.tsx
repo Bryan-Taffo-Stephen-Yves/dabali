@@ -11,7 +11,7 @@ import type { Occupancy } from "@/lib/types";
 type A = {
   room: { id: string; name: string; total_tables: number; layout: { id: string; x: number; y: number; seats: number }[] };
   now: Occupancy;
-  last: { created_at: string; table_states: Record<string, boolean>; occupied_tables: number; rate: number; people_count: number } | null;
+  last: { created_at: string; table_states: Record<string, boolean>; occupied_tables: number; rate: number; people_count: number; queue_count?: number | null; counter_count?: number | null } | null;
   curve: { t: string; rate: number; people: number }[];
   peaks: { dow: number; h: number; rate: number }[];
 };
@@ -45,7 +45,9 @@ export default function OccupancyPage() {
         <Kpi tone="dark" label="Taux d'occupation" value={now?.status === "open" ? `${Math.round(now.rate)} %` : "Fermé"} hint={now?.status === "open" ? SERVICE_LABEL[now.service] : undefined} />
         <Kpi label="Tables occupées" value={now?.status === "open" ? `${now.occupied_tables} / ${now.total_tables}` : "—"} />
         <Kpi label="Personnes détectées" value={live ? String(a!.last!.people_count) : "—"} hint={live ? `relevé à ${time(a!.last!.created_at)}` : undefined} />
-        <Kpi tone="lime" label="Attente estimée" value={now?.status === "open" ? `~${now.wait_min} min` : "—"} />
+        <Kpi tone="lime" label={now?.status === "open" && now.queue_count != null ? "File d'attente" : "Attente estimée"}
+          value={now?.status === "open" ? (now.queue_count != null ? `${now.queue_count} pers. · ~${now.wait_min} min` : `~${now.wait_min} min`) : "—"}
+          hint={now?.status === "open" ? (now.wait_source === "queue" ? "caméra (couloir) ÷ rythme du comptoir" : "estimation sans caméra de file") : undefined} />
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
