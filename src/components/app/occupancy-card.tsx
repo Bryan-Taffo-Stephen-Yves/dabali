@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { Users, Clock3, Moon } from "lucide-react";
 import { rpc, supabase } from "@/lib/supabase/client";
-import { SERVICE_LABEL, time } from "@/lib/format";
+import { SERVICE_LABEL, relativeDay, time, todayISO } from "@/lib/format";
 import type { Occupancy } from "@/lib/types";
 
 const LEVEL = {
@@ -34,7 +34,9 @@ export function OccupancyCard() {
         <div>
           <p className="font-bold">Réfectoire fermé</p>
           <p className="text-sm text-muted">
-            {o.next ? `${SERVICE_LABEL[o.next.service]} à partir de ${time(o.next.starts_at)}` : "Rendez-vous demain à 11h30"}
+            {o.next
+              ? `${SERVICE_LABEL[o.next.service]} ${todayISO(new Date(o.next.starts_at)) === todayISO() ? "" : relativeDay(todayISO(new Date(o.next.starts_at))).toLowerCase() + " "}à partir de ${time(o.next.starts_at)}`
+              : "Aucun service prévu cette semaine"}
           </p>
         </div>
       </div>
