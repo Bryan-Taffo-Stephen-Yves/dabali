@@ -10,11 +10,13 @@ dabali/
 ├── supabase/
 │   ├── config.toml
 │   ├── migrations/                ← schéma, RLS, RPC (ordre chronologique)
-│   │   ├── 20261106000100_types.sql           (extensions, enums)
-│   │   ├── 20261106000200_tables.sql          (tables + paramètres par défaut)
-│   │   ├── 20261106000300_functions.sql      (RPC transactionnelles)
-│   │   ├── 20261106000400_rls_and_grants.sql
-│   │   └── 20261106000500_platform.sql       (cron, realtime, storage — ignorés hors Supabase)
+│   │   ├── …_types.sql / …_tables.sql      (enums, tables, paramètres par défaut)
+│   │   ├── …_functions_core.sql            (PIN, recharge, caisse, transferts)
+│   │   ├── …_functions_tickets_menus.sql   (achat, annulation, scan, menus, stock)
+│   │   ├── …_rls_and_grants.sql
+│   │   ├── …_platform.sql                  (cron, realtime, storage — ignorés hors Supabase)
+│   │   ├── …_advisor_fixes.sql / …_occupancy_now.sql
+│   │   └── …_dashboard.sql                 (agrégats du dashboard)
 │   ├── functions/                 ← Edge Functions (Deno)
 │   │   ├── _shared/qr.ts          (signature / vérification HMAC-SHA256 des QR)
 │   │   ├── _shared/http.ts
