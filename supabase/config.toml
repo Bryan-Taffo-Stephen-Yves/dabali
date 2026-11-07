@@ -1,0 +1,8 @@
+# Configuration Supabase CLI (les valeurs non précisées gardent leurs défauts).
+project_id = "dabali"
+
+[functions.redeem-ticket]
+verify_jwt = true
+
+[functions.ticket-token]
+verify_jwt = true

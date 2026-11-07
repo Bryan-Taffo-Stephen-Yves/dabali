@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.env
+.env.local
+.env*.local
+supabase/.branches
+supabase/.temp
+supabase/functions/.env
+vision/.venv/
+vision/__pycache__/
+vision/zones.json
+*.log
+.DS_Store
