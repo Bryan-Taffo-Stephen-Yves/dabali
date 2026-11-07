@@ -1,6 +1,8 @@
+"use client";
+import { useState } from "react";
 import clsx from "clsx";
 
-// Visuel de repli élégant tant qu'aucune photo n'est importée : dégradé + initiales du plat
+// Visuel de repli élégant (dégradé + initiales) : quand il n'y a pas de photo, ou si elle ne charge pas
 const PALETTES = [
   ["#FDE68A", "#F59E0B"], ["#FECACA", "#EF4444"], ["#D9F99D", "#65A30D"], ["#FED7AA", "#EA580C"],
   ["#BFDBFE", "#2563EB"], ["#E9D5FF", "#9333EA"], ["#A7F3D0", "#059669"], ["#FBCFE8", "#DB2777"],
@@ -15,9 +17,10 @@ function hash(s: string) {
 export function DishImage({ name, src, className, rounded = "rounded-2xl" }: {
   name: string; src?: string | null; className?: string; rounded?: string;
 }) {
-  if (src) {
+  const [failed, setFailed] = useState<string | null>(null);
+  if (src && failed !== src) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={name} loading="lazy" className={clsx("object-cover", rounded, className)} />;
+    return <img src={src} alt={name} loading="lazy" onError={() => setFailed(src)} className={clsx("bg-canvas object-cover", rounded, className)} />;
   }
   const [a, b] = PALETTES[hash(name) % PALETTES.length];
   const initials = name.split(/\s+/).filter((w) => w.length > 2).slice(0, 2).map((w) => w[0]).join("").toUpperCase();

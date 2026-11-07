@@ -3,7 +3,7 @@
 Cantine connectée : porte-monnaie prépayé, tickets QR à usage unique, menu illustré, dashboard de gestion
 et suivi d'affluence par vision (YOLO). Projet du **Hackathon Restauration Vatel** — 21 novembre 2026.
 
-> Architecture, arborescence et décisions : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+> **Site en ligne : https://dabalix.netlify.app** · Architecture et décisions : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## Ce qui est en place
 
@@ -60,7 +60,8 @@ Postgres ≥ 15 et Node ≥ 22.18 suffisent (les tests simulent `auth.uid()` et 
 
 ```bash
 PGHOST=localhost PGUSER=postgres supabase/tests/run.sh      # 191 vérifications SQL + QR + concurrence
-SUPABASE_URL=… SUPABASE_ANON_KEY=… scripts/smoke-remote.sh  # bout en bout contre le projet (consomme un ticket de démo)
+SUPABASE_URL=… SUPABASE_ANON_KEY=… scripts/smoke-remote.sh  # API bout en bout (consomme un ticket de démo)
+BASE=https://dabalix.netlify.app node scripts/e2e-deployed.js  # parcours complet dans un navigateur sur le site en ligne
 python -m pytest vision/ -q                                 # module vision
 ```
 

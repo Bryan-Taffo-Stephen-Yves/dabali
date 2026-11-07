@@ -66,7 +66,16 @@ const OUT = process.argv[2] || ".";
     return r.json();
   }, { tok, date, service });
 
-  const meta = await p.evaluate((id) => JSON.parse(localStorage.getItem("dabali:tickets")).find((t) => t.id === id), ticketId);
+  // Date et service du ticket, lus via l'API avec la session du client
+  const meta = await p.evaluate(async (id) => {
+    const c = document.cookie.split("; ").filter((x) => x.startsWith("sb-")).map((x) => decodeURIComponent(x.split("=").slice(1).join("=")));
+    const raw = c.join("");
+    const session = JSON.parse(raw.startsWith("base64-") ? atob(raw.slice(7)) : raw);
+    const anon = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1bmdoeHd0a25lanhrZWRhb3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5ODI5MDEsImV4cCI6MjEwOTU1ODkwMX0.6a92Pd0x-vmGKsZnfEa-nLRuKQRa92ERbqY6uukdMsY";
+    const r = await fetch(`https://punghxwtknejxkedaoty.supabase.co/rest/v1/tickets?select=service_date,service&id=eq.${id}`,
+      { headers: { apikey: anon, Authorization: `Bearer ${session.access_token}` } });
+    return (await r.json())[0];
+  }, ticketId);
   const r1 = await scan(token, meta.service_date, meta.service);
   step(`1er scan : ${r1.ok ? "ACCEPTÉ — " + r1.client + " · " + r1.dish : "refusé " + r1.message}`);
   const r2 = await scan(token, meta.service_date, meta.service);
