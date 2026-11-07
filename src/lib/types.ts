@@ -21,6 +21,8 @@ export type Dish = {
   weight_g: number | null;
   allergens: string[];
   photo_url: string | null;
+  photo_credit?: string | null;
+  photo_source?: string | null;
   base_price: number;
 };
 

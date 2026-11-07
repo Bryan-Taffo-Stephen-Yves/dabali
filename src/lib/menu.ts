@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase/client";
 import type { MenuItem } from "@/lib/types";
 
 export const MENU_ITEM_COLUMNS =
-  "id, service_date, service, price, planned_qty, sold_qty, is_sold_out, is_full, dish:dishes(id, name, category_id, description, composition, kcal, weight_g, allergens, photo_url, base_price)";
+  "id, service_date, service, price, planned_qty, sold_qty, is_sold_out, is_full, dish:dishes(id, name, category_id, description, composition, kcal, weight_g, allergens, photo_url, photo_credit, photo_source, base_price)";
 
 export type DishStat = { dish_id: string; avg_stars: number | null; ratings_count: number };
 

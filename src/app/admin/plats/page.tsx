@@ -15,7 +15,7 @@ type Cat = { id: number; name: string };
 type Ing = { id: string; name: string; unit: string };
 type Line = { ingredient_id: string; qty_per_portion: number };
 type D = Dish & { is_active: boolean };
-const EMPTY: Partial<D> = { name: "", description: "", composition: "", kcal: null, weight_g: null, allergens: [], base_price: 2000, is_active: true, category_id: null, photo_url: null };
+const EMPTY: Partial<D> = { photo_credit: null, photo_source: null, name: "", description: "", composition: "", kcal: null, weight_g: null, allergens: [], base_price: 2000, is_active: true, category_id: null, photo_url: null };
 
 export default function DishesPage() {
   const toast = useToast();
@@ -64,6 +64,7 @@ export default function DishesPage() {
     const payload = {
       name: edit.name.trim(), category_id: edit.category_id, description: edit.description || null, composition: edit.composition || null,
       kcal: edit.kcal || null, weight_g: edit.weight_g || null, allergens: edit.allergens ?? [], photo_url: edit.photo_url || null,
+      photo_credit: edit.photo_credit || null, photo_source: edit.photo_source || null,
       base_price: edit.base_price, is_active: edit.is_active ?? true, updated_at: new Date().toISOString(),
     };
     const res = edit.id ? await sb.from("dishes").update(payload).eq("id", edit.id).select("id").single()
@@ -118,6 +119,7 @@ export default function DishesPage() {
                 <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
               </label>
             </div>
+            <input value={edit.photo_credit ?? ""} onChange={(e) => setEdit({ ...edit, photo_credit: e.target.value })} placeholder="Crédit photo (auteur · licence) — obligatoire pour une photo CC BY-SA" className={clsx(input, "w-full text-xs")} />
             <input value={edit.name ?? ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Nom du plat" className={clsx(input, "w-full")} />
             <div className="grid grid-cols-2 gap-2">
               <select value={edit.category_id ?? ""} onChange={(e) => setEdit({ ...edit, category_id: e.target.value ? +e.target.value : null })} className={input}>

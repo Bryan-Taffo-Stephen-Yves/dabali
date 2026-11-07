@@ -114,6 +114,12 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
           className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))] grid size-11 place-items-center rounded-full bg-white/95 shadow-[var(--shadow-card)]">
           <ChevronLeft className="size-5" />
         </button>
+        {item.dish.photo_credit && (
+          <a href={item.dish.photo_source ?? undefined} target="_blank" rel="noreferrer"
+            className="absolute bottom-4 left-4 max-w-[55%] truncate rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-semibold text-white/90 backdrop-blur">
+            {item.dish.photo_credit}
+          </a>
+        )}
         {stat?.avg_stars != null && (
           <span className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold shadow-[var(--shadow-card)]">
             <Star className="size-4 fill-warn text-warn" />{stat.avg_stars.toFixed(1)}<span className="font-semibold text-muted">· {stat.ratings_count} avis</span>
