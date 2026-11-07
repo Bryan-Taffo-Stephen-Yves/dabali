@@ -7,7 +7,8 @@ import { Columns, Heatmap, Meter } from "@/components/admin/charts";
 import { addDays, dayNum, fcfa, todayISO } from "@/lib/format";
 
 type S = {
-  revenue: number; recharges: number; transfers: number; tickets: number; served: number; expired: number; cancelled: number;
+  revenue: number; sales: number; held: number; refunded_expired: number;
+  recharges: number; transfers: number; tickets: number; served: number; expired: number; cancelled: number;
   daily: { day: string; revenue: number; tickets: number }[];
   dishes: { name: string; sold: number; revenue: number; stars: number | null }[];
   heatmap: { dow: number; h: number; n: number }[];
@@ -33,19 +34,19 @@ export default function SalesPage() {
       <PageTitle title="Ventes et rapports" subtitle={`Du ${dayNum(from)}/${from.slice(5, 7)} au ${dayNum(to)}/${to.slice(5, 7)}`}>
         <Segmented value={period} onChange={setPeriod} options={[["7", "7 jours"], ["14", "14 jours"], ["28", "4 semaines"]]} />
         <button disabled={!s} onClick={() => s && downloadCsv(`ventes-${from}-${to}.csv`, [
-          ["Jour", "CA (FCFA)", "Tickets"], ...s.daily.map((d) => [d.day, d.revenue, d.tickets]), [],
+          ["Jour", "Encaissé - repas servis (FCFA)", "Tickets servis"], ...s.daily.map((d) => [d.day, d.revenue, d.tickets]), [],
           ["Plat", "Vendus", "CA (FCFA)", "Note"], ...s.dishes.map((d) => [d.name, d.sold, d.revenue, d.stars]),
         ])} className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-card px-4 text-sm font-bold"><Download className="size-4" />Export CSV</button>
       </PageTitle>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi tone="dark" label="Chiffre d'affaires" value={s ? fcfa(s.revenue) : "…"} hint={s ? `${fcfa(Math.round(s.revenue / +period))} / jour` : undefined} />
+        <Kpi tone="dark" label="Encaissé · repas servis" value={s ? fcfa(s.revenue) : "…"} hint={s ? `tickets scannés · ${fcfa(Math.round(s.revenue / +period))} / jour` : undefined} />
         <Kpi tone="lime" label="Recharges" value={s ? fcfa(s.recharges) : "…"} hint={s ? `Transferts entre clients : ${fcfa(s.transfers)}` : undefined} />
         <Kpi label="Tickets" value={s ? String(s.tickets) : "…"} hint={s ? `${s.served} servis · ${s.cancelled} annulés` : undefined} />
-        <Kpi label="Taux d'expiration" value={s ? `${expiryRate} %` : "…"} hint={s ? `${s.expired} tickets payés non consommés` : undefined} />
+        <Kpi label="En attente" value={s ? fcfa(s.held) : "…"} hint={s ? `tickets valides pas encore scannés · ${expiryRate} % expirent (${fcfa(s.refunded_expired)} remboursés)` : undefined} />
       </div>
 
-      <Card className="mt-4" title="Chiffre d'affaires par jour" subtitle="Ventes nettes des remboursements">
+      <Card className="mt-4" title="Encaissé par jour" subtitle="Valeur des tickets scannés au comptoir : l'argent ne revient au prestataire qu'au scan">
         {s ? <Columns data={s.daily.map((d) => ({ label: d.day, value: d.revenue }))} format={fcfa} label={(l) => `${dayNum(l)}/${l.slice(5, 7)}`}
           every={+period > 14 ? 3 : 1} highlight={s.daily.length - 1} /> : <div className="h-44 animate-pulse rounded-xl bg-canvas" />}
       </Card>

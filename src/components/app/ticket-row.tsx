@@ -14,7 +14,7 @@ export function TicketRow({ t }: { t: Ticket }) {
   const sub =
     st === "valid" ? `Valable jusqu'au ${shortDateTime(t.valid_until)}`
     : st === "used" ? (t.dish ? `Servi : ${t.dish.name}` : "Utilisé") + (t.used_at ? ` · ${shortDateTime(t.used_at)}` : "")
-    : st === "expired" ? `Expiré le ${shortDateTime(t.valid_until)}`
+    : st === "expired" ? `Expiré le ${shortDateTime(t.valid_until)} · remboursé`
     : "Annulé et remboursé";
   const body = (
     <div className={clsx("flex items-center gap-3 rounded-[20px] bg-card p-3 pr-3.5 shadow-[var(--shadow-card)]", !clickable && "opacity-80")}>

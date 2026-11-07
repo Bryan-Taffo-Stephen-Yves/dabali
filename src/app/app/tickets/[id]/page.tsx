@@ -117,7 +117,7 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
           <p className="mt-6 text-center text-sm font-semibold text-muted">
             {st === "valid" ? "Présentez ce code au comptoir, choisissez votre plat"
               : st === "used" ? `Utilisé le ${shortDateTime(t.used_at!)}`
-              : st === "expired" ? "Ticket expiré sans être utilisé" : "Ticket annulé et remboursé"}
+              : st === "expired" ? (t.total > 0 ? "Non utilisé : remboursé sur ton solde" : "Non utilisé : tes points t'ont été rendus") : "Ticket annulé et remboursé"}
           </p>
         </div>
 

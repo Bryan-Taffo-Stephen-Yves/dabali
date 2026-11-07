@@ -12,7 +12,8 @@ import { dayLong, fcfa, todayISO, SERVICE_LABEL, time } from "@/lib/format";
 import type { Occupancy } from "@/lib/types";
 
 type Overview = {
-  revenue: number; recharges: number; recharges_cash: number; sold: number; served: number; expired: number; outstanding: number;
+  revenue: number; sales: number; held: number; refunded_expired: number;
+  recharges: number; recharges_cash: number; sold: number; served: number; expired: number; outstanding: number;
   avg_basket: number; sold_out: number; occupancy: Occupancy;
   by_hour: { h: number; sales: number; scans: number }[];
   top_dishes: { name: string; photo_url: string | null; sold: number }[];
@@ -59,7 +60,7 @@ export default function OverviewPage() {
       </PageTitle>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi tone="dark" icon={Banknote} label="Chiffre d'affaires" value={o ? fcfa(o.revenue) : "…"} hint={o ? `Panier moyen ${fcfa(o.avg_basket)}` : undefined} />
+        <Kpi tone="dark" icon={Banknote} label="Encaissé · repas servis" value={o ? fcfa(o.revenue) : "…"} hint={o ? `Ventes ${fcfa(o.sales)} · ${fcfa(o.held)} en attente de scan` : undefined} />
         <Kpi tone="lime" icon={ShoppingBasket} label="Recharges encaissées" value={o ? fcfa(o.recharges) : "…"} hint={o ? `dont ${fcfa(o.recharges_cash)} en espèces` : undefined} />
         <Kpi icon={Ticket} label="Repas servis aujourd'hui" value={o ? String(o.served) : "…"} hint={o ? `${o.sold} tickets vendus · ${o.outstanding} en circulation` : undefined} />
         <Kpi icon={Users} label="Occupation" value={occ?.status === "open" ? `${Math.round(occ.rate)} %` : "Fermé"}

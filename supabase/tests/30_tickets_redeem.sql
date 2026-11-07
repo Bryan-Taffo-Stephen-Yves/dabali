@@ -90,14 +90,28 @@ select tests.logout();
 insert into public.tickets (id, user_id, buyer_id, service, total, valid_from, valid_until, qr_nonce)
 values ('00000000-0000-0000-0003-000000000001', tests.uid('bob'), tests.uid('bob'), 'lunch', 2500,
         now() - interval '49 hours', now() - interval '1 hour', 'abc');
+-- un 2e ticket qui expire dans 2 h : rappel attendu
+insert into public.tickets (id, user_id, buyer_id, service, total, valid_from, valid_until, qr_nonce)
+values ('00000000-0000-0000-0003-000000000002', tests.uid('bob'), tests.uid('bob'), 'dinner', 2500,
+        now() - interval '46 hours', now() + interval '2 hours', 'def');
 select tests.as_service();
+select balance as bob_before from public.wallets where user_id = tests.uid('bob') \gset
 select tests.code(public.redeem_ticket('00000000-0000-0000-0003-000000000001', 'abc', tests.uid('agent'), current_date, 'lunch'),
                   'EXPIRED', 'ticket de plus de 48 h refusé, même avant le cron');
 select tests.ok(public.expire_tickets() >= 1, 'cron expire_tickets');
-select tests.logout();
 select tests.eq((select status from public.tickets where id = '00000000-0000-0000-0003-000000000001')::text, 'expired', 'ticket expiré');
+select tests.eq((select balance from public.wallets where user_id = tests.uid('bob')), :bob_before + 2500,
+                'ticket jamais scanné : remboursé automatiquement à l''expiration');
+select tests.eq((select count(*) from public.transactions where ticket_id = '00000000-0000-0000-0003-000000000001' and type = 'refund')::int, 1,
+                'remboursement tracé dans l''historique');
+select tests.eq((select count(*) from public.notifications where user_id = tests.uid('bob') and type = 'ticket_refunded')::int, 1, 'client prévenu du remboursement');
+select tests.eq((select count(*) from public.notifications where user_id = tests.uid('bob') and type = 'ticket_expiring')::int, 1, 'rappel 3 h avant l''expiration');
+select public.expire_tickets();
+select tests.eq((select count(*) from public.transactions where ticket_id = '00000000-0000-0000-0003-000000000001' and type = 'refund')::int, 1,
+                'cron relancé : pas de double remboursement');
+select tests.eq((select count(*) from public.notifications where user_id = tests.uid('bob') and type = 'ticket_expiring')::int, 1, 'rappel envoyé une seule fois');
 select tests.login('bob');
-select tests.code(public.cancel_ticket('00000000-0000-0000-0003-000000000001'), 'NOT_CANCELLABLE', 'ticket expiré non remboursable');
+select tests.code(public.cancel_ticket('00000000-0000-0000-0003-000000000001'), 'NOT_CANCELLABLE', 'ticket expiré : déjà remboursé, plus annulable');
 
 select tests.logout();
 select tests.check_ledger();
