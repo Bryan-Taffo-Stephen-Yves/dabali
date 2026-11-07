@@ -11,3 +11,4 @@ vision/__pycache__/
 vision/zones.json
 *.log
 .DS_Store
+.netlify
