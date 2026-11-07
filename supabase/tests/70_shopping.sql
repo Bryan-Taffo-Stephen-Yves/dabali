@@ -46,7 +46,7 @@ select tests.code(public.shopping_check((select id from public.shopping_items wh
 select tests.login('agent');
 select tests.code(public.shopping_complete(:'list'), 'ITEMS_LEFT', 'terminer sans tout cocher : refusé');
 select public.shopping_check(id, 'bought', 12, 36000) from public.shopping_items where list_id = :'list' and ingredient_id = :'poisson';
-select public.shopping_check(id, 'bought', null, 3000) from public.shopping_items where list_id = :'list' and label = 'Œufs';
+select public.shopping_check(id, 'missing') from public.shopping_items where list_id = :'list' and label = 'Œufs';
 select public.shopping_check(id, 'missing') from public.shopping_items where list_id = :'list' and label = 'Frites surgelées';
 select tests.as_service();
 select stock_qty as before from public.ingredients where id = :'poisson' \gset
@@ -54,9 +54,11 @@ select tests.login('agent');
 select tests.ok((public.shopping_complete(:'list')->>'ok')::boolean, 'courses terminées');
 select tests.as_service();
 select tests.eq((select stock_qty from public.ingredients where id = :'poisson'), :before + 12, 'stock crédité de la quantité achetée');
-select tests.eq((select spent_total from public.shopping_lists where id = :'list'), 39000, 'total dépensé = somme des prix');
+select tests.eq((select spent_total from public.shopping_lists where id = :'list'), 36000, 'total dépensé = somme des prix');
 select tests.eq((select count(*) from public.shopping_items si join public.shopping_lists sl on sl.id = si.list_id
                   where sl.status = 'open' and si.label = 'Frites surgelées')::int, 1, 'article introuvable reporté sur la fiche suivante');
+select tests.eq((select count(*) from public.shopping_items si join public.shopping_lists sl on sl.id = si.list_id
+                  where sl.status = 'open' and si.label = 'Œufs')::int, 1, 'ajout manuel introuvable (même lié au stock) reporté');
 select tests.login('agent');
 select tests.code(public.shopping_complete(:'list'), 'BAD_STATUS', 'fiche terminée : pas de double crédit du stock');
 rollback;
