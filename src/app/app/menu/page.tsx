@@ -6,7 +6,7 @@ import clsx from "clsx";
 import { Flame, Star, Plus, Sun, Moon } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { DishImage } from "@/components/app/dish-image";
-import { fetchDishStats, fetchMenu, soldOut, tagsFor, TAG_STYLE, type DishStat } from "@/lib/menu";
+import { fetchDishStats, fetchMenu, fetchServices, serviceEnded, soldOut, tagsFor, TAG_STYLE, type DishStat, type Services } from "@/lib/menu";
 import { addDays, dayNum, dayShort, fcfa, todayISO } from "@/lib/format";
 import type { MenuItem } from "@/lib/types";
 
@@ -24,11 +24,15 @@ function Menu() {
   const [stats, setStats] = useState<Record<string, DishStat>>({});
   const [cats, setCats] = useState<Category[]>([]);
   const [cat, setCat] = useState<number | null>(null);
+  const [services, setServices] = useState<Services | null>(null);
+  // On ne propose que les services encore ouverts à l'achat
+  const open = (items ?? []).filter((i) => !serviceEnded(i.service_date, i.service, services));
 
   const days = useMemo(() => Array.from({ length: 8 }, (_, i) => addDays(today, i)), [today]);
-  const available = useMemo(() => days.filter((d) => items?.some((i) => i.service_date === d)), [days, items]);
+  const available = useMemo(() => days.filter((d) => open.some((i) => i.service_date === d)), [days, open]);
   const day = params.get("jour") ?? available[0] ?? today;
-  const service = (params.get("service") as "lunch" | "dinner") ?? (new Date().getUTCHours() >= 15 && day === today ? "dinner" : "lunch");
+  const openServices = (["lunch", "dinner"] as const).filter((s) => open.some((i) => i.service_date === day && i.service === s));
+  const service = (params.get("service") as "lunch" | "dinner") ?? openServices[0] ?? "lunch";
 
   const go = (patch: Record<string, string>) => {
     const p = new URLSearchParams(params);
@@ -39,6 +43,7 @@ function Menu() {
   useEffect(() => {
     fetchMenu(today, addDays(today, 7)).then(setItems);
     fetchDishStats().then(setStats);
+    fetchServices().then(setServices);
     supabase().from("categories").select("id, name").order("sort").then(({ data }) => setCats(data ?? []));
     // Ruptures et ventes en direct (§4.3, §12 : grisé en < 3 s)
     const sb = supabase();
@@ -53,7 +58,7 @@ function Menu() {
 
   const list = (items ?? []).filter((i) => i.service_date === day && i.service === service && (cat === null || i.dish.category_id === cat));
   list.sort((a, b) => Number(soldOut(a)) - Number(soldOut(b)));
-  const servicesOfDay = new Set((items ?? []).filter((i) => i.service_date === day).map((i) => i.service));
+  const servicesOfDay = new Set(openServices);
 
   return (
     <main>
@@ -108,15 +113,15 @@ function Menu() {
             <p className="mt-1 text-sm text-muted">Essayez un autre jour ou un autre service.</p>
           </div>
         )}
-        {list.map((i) => <DishCard key={i.id} item={i} stat={stats[i.dish.id]} />)}
+        {list.map((i) => <DishCard key={i.id} item={i} stat={stats[i.dish.id]} ended={serviceEnded(i.service_date, i.service, services)} />)}
       </section>
     </main>
   );
 }
 
-function DishCard({ item, stat }: { item: MenuItem; stat?: DishStat }) {
-  const out = soldOut(item);
-  const tags = tagsFor(item, stat);
+function DishCard({ item, stat, ended }: { item: MenuItem; stat?: DishStat; ended?: boolean }) {
+  const out = soldOut(item) || !!ended;
+  const tags = ended ? [{ label: "Service terminé", tone: "dark" as const }] : tagsFor(item, stat);
   const inner = (
     <article className={clsx("overflow-hidden rounded-[24px] bg-card shadow-[var(--shadow-card)] transition", out ? "opacity-60" : "active:scale-[0.99]")}>
       <div className="relative">

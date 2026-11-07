@@ -11,7 +11,7 @@ import { PinPad } from "@/components/ui/pin-pad";
 import { RecipientSheet } from "@/components/app/recipient-sheet";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/components/app/app-data";
-import { MENU_ITEM_COLUMNS, remaining, soldOut } from "@/lib/menu";
+import { MENU_ITEM_COLUMNS, fetchServices, remaining, serviceEnded, soldOut, type Services } from "@/lib/menu";
 import { SERVICE_LABEL, fcfa, relativeDay, dateTime } from "@/lib/format";
 import { syncTokens } from "@/lib/tickets";
 import type { Extra, MenuItem } from "@/lib/types";
@@ -34,6 +34,8 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const [pinOpen, setPinOpen] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [services, setServices] = useState<Services | null>(null);
+  useEffect(() => { fetchServices().then(setServices); }, []);
 
   useEffect(() => {
     const sb = supabase();
@@ -103,7 +105,8 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
     return <div className="p-4"><div className="h-72 animate-pulse rounded-[28px] bg-card" /><div className="mt-4 h-40 animate-pulse rounded-[24px] bg-card" /></div>;
   }
 
-  const out = soldOut(item);
+  const ended = serviceEnded(item.service_date, item.service, services);
+  const out = soldOut(item) || ended;
   const left = remaining(item);
 
   return (
@@ -140,7 +143,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         <div className="mt-4 grid grid-cols-3 gap-2">
           <Info icon={Flame} label="Énergie" value={item.dish.kcal ? `${item.dish.kcal} kcal` : "—"} />
           <Info icon={Scale} label="Portion" value={item.dish.weight_g ? `${item.dish.weight_g} g` : "—"} />
-          <Info icon={Clock} label="Restant" value={out ? "Épuisé" : left === null ? "∞" : `${left} portions`} warn={!out && left !== null && left <= 5} />
+          <Info icon={Clock} label="Restant" value={ended ? "Terminé" : out ? "Épuisé" : left === null ? "∞" : `${left} portions`} warn={!out && left !== null && left <= 5} />
         </div>
 
         <Block title="Composition"><p className="text-[15px] text-ink-2">{item.dish.composition}</p></Block>
@@ -226,7 +229,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         )}
         <Button size="lg" block variant={out ? "outline" : "dark"} disabled={out || insufficient} loading={busy}
           onClick={() => (needsPin ? (setPinError(null), setPinOpen(true)) : buy())}>
-          {out ? "Épuisé" : <>Acheter <span className="text-lime">·</span> {fcfa(total)}</>}
+          {ended ? "Service terminé" : out ? "Épuisé" : <>Acheter <span className="text-lime">·</span> {fcfa(total)}</>}
         </Button>
       </div>
 

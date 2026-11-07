@@ -17,7 +17,7 @@ const OUT = process.argv[2] || ".";
   await p.getByRole("button", { name: "Client" }).click();
   await p.waitForURL("**/app", { timeout: 30000 });
   await p.waitForTimeout(2500);
-  const balance0 = await p.locator("text=/\\d[\\d\\s\\u00a0]* FCFA/").first().textContent();
+  const balance0 = await p.locator("text=/\\d[\\d\\s\\u00a0]*[\\s\\u00a0]FCFA/").first().textContent();
   step(`connecté · solde affiché ${balance0}`);
   await p.screenshot({ path: `${OUT}/1-accueil.png` });
 

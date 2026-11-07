@@ -45,3 +45,21 @@ export const TAG_STYLE: Record<Tag["tone"], string> = {
   warn: "bg-warn text-white",
   err: "bg-err text-white",
 };
+
+// ───────── Horaires des services (Africa/Abidjan = UTC+0 toute l'année) ─────────
+export type Services = Record<"lunch" | "dinner", { label: string; start: string; end: string }>;
+const DEFAULT_SERVICES: Services = {
+  lunch: { label: "Déjeuner", start: "11:30", end: "14:30" },
+  dinner: { label: "Dîner", start: "18:30", end: "21:00" },
+};
+
+export async function fetchServices(): Promise<Services> {
+  const { data } = await supabase().from("settings").select("value").eq("key", "services").maybeSingle();
+  return (data?.value as Services) ?? DEFAULT_SERVICES;
+}
+
+/** Le service est-il terminé ? (l'achat est alors refusé par le serveur) */
+export function serviceEnded(date: string, service: "lunch" | "dinner", services: Services | null, now = Date.now()) {
+  const end = (services ?? DEFAULT_SERVICES)[service].end;
+  return new Date(`${date}T${end}:00Z`).getTime() <= now;
+}
