@@ -75,5 +75,9 @@ export async function syncTokens(): Promise<QrCache> {
   }
   if (r.ok) for (const t of r.tokens) cache[t.ticket_id] = { token: t.token, valid_until: t.valid_until };
   write(Q_KEY, cache);
+  // Préchargement des pages de tickets : le service worker les garde pour le mode avion
+  if (r.ok && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
+    for (const t of r.tokens) fetch(`/app/tickets/${t.ticket_id}`, { credentials: "include" }).catch(() => {});
+  }
   return cache;
 }

@@ -1,0 +1,105 @@
+"use client";
+import { useEffect, useState } from "react";
+import clsx from "clsx";
+import { ShoppingCart, Download, Info } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
+import { Card, PageTitle, Badge, Empty, Kpi, downloadCsv } from "@/components/admin/ui";
+import { addDays, dayLong, dayShort, dayNum, fcfa, todayISO, SERVICE_LABEL } from "@/lib/format";
+
+type F = {
+  items: { id: string; service: "lunch" | "dinner"; dish: string; sold: number; planned: number | null; expected: number; remaining: number; recommended: number; basis: string }[];
+  ingredients: { id: string; name: string; unit: string; stock: number; need: number; to_buy: number; cost: number }[];
+};
+
+const num = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+
+export default function ForecastPage() {
+  const today = todayISO();
+  const [date, setDate] = useState(addDays(today, 1));
+  const [f, setF] = useState<F | null>(null);
+
+  useEffect(() => {
+    setF(null);
+    supabase().rpc("admin_forecast", { p_date: date }).then(({ data }) => setF(data as F));
+  }, [date]);
+
+  const total = f?.items.reduce((s, i) => s + i.recommended, 0) ?? 0;
+  const sold = f?.items.reduce((s, i) => s + i.sold, 0) ?? 0;
+  const shopping = f?.ingredients.filter((i) => i.to_buy > 0) ?? [];
+  const budget = shopping.reduce((s, i) => s + i.cost, 0);
+
+  return (
+    <>
+      <PageTitle title="Prévisions" subtitle="Combien préparer, et quoi acheter, pour ne rien jeter">
+        <div className="flex gap-1.5 overflow-x-auto">
+          {Array.from({ length: 7 }, (_, i) => addDays(today, i)).map((d) => (
+            <button key={d} onClick={() => setDate(d)}
+              className={clsx("flex w-12 shrink-0 flex-col items-center rounded-xl py-1.5 text-xs font-bold", d === date ? "bg-ink text-white" : "border border-line bg-card")}>
+              <span className={d === date ? "text-lime" : "text-muted"}>{dayShort(d)}</span><span className="text-base">{dayNum(d)}</span>
+            </button>
+          ))}
+        </div>
+      </PageTitle>
+
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi tone="dark" label="Portions à préparer" value={f ? String(total) : "…"} hint={dayLong(date)} />
+        <Kpi label="Déjà vendues" value={f ? String(sold) : "…"} hint="précommandes payées" />
+        <Kpi label="Ventes estimées en plus" value={f ? String(Math.max(total - sold, 0)) : "…"} hint="moyenne des 4 mêmes jours + 5 %" />
+        <Kpi tone="lime" label="Budget courses" value={f ? fcfa(budget) : "…"} hint={`${shopping.length} ingrédients à acheter`} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <Card title="Portions recommandées par plat" pad={false}
+          action={f && <button onClick={() => downloadCsv(`previsions-${date}.csv`, [["Service", "Plat", "Vendus", "Estimés en plus", "Recommandé", "Prévu"], ...f.items.map((i) => [SERVICE_LABEL[i.service], i.dish, i.sold, i.remaining, i.recommended, i.planned])])}
+            className="mr-5 flex items-center gap-1.5 text-sm font-bold text-muted hover:text-ink"><Download className="size-4" />CSV</button>}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-y border-line bg-canvas text-left text-xs font-bold uppercase tracking-wider text-muted">
+                <th className="px-5 py-2.5">Plat</th><th className="px-2 text-right">Vendus</th><th className="px-2 text-right">+ Estimés</th>
+                <th className="px-2 text-right">À préparer</th><th className="px-5 text-right">Prévu au menu</th></tr></thead>
+              <tbody>
+                {f?.items.length === 0 && <tr><td colSpan={5} className="p-5"><Empty>Pas de menu ce jour-là</Empty></td></tr>}
+                {(["lunch", "dinner"] as const).map((s) => {
+                  const rows = f?.items.filter((i) => i.service === s) ?? [];
+                  if (!rows.length) return null;
+                  return [
+                    <tr key={s}><td colSpan={5} className="px-5 pb-1 pt-4 text-xs font-extrabold uppercase tracking-wider text-muted">{SERVICE_LABEL[s]}</td></tr>,
+                    ...rows.map((i) => {
+                      const over = i.planned != null && i.planned > i.recommended * 1.25;
+                      return (
+                        <tr key={i.id} className="border-b border-line last:border-0">
+                          <td className="px-5 py-3 font-bold">{i.dish}{i.basis !== "dish" && <span className="ml-2 text-xs font-medium text-muted">({i.basis === "category" ? "moy. catégorie" : "sans historique"})</span>}</td>
+                          <td className="px-2 text-right">{i.sold}</td>
+                          <td className="px-2 text-right text-muted">+{i.remaining}</td>
+                          <td className="px-2 text-right"><span className="rounded-lg bg-lime px-2 py-1 font-extrabold">{i.recommended}</span></td>
+                          <td className="px-5 text-right">{i.planned ?? "∞"} {over && <Badge tone="warn">trop</Badge>}</td>
+                        </tr>
+                      );
+                    }),
+                  ];
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="flex gap-2 border-t border-line px-5 py-3 text-xs text-muted"><Info className="size-4 shrink-0" />
+            Méthode v1 : ventes finales moyennes du même plat les 4 mêmes jours de semaine précédents (repli : moyenne de la catégorie), au moins égales aux ventes déjà faites, + 5 % de marge.</p>
+        </Card>
+
+        <Card title="Liste de courses" subtitle="Besoins des recettes vs stock (seuil d'alerte conservé)"
+          action={shopping.length > 0 && <button onClick={() => downloadCsv(`courses-${date}.csv`, [["Ingrédient", "À acheter", "Unité", "Coût estimé"], ...shopping.map((i) => [i.name, i.to_buy, i.unit, i.cost])])}
+            className="flex items-center gap-1.5 text-sm font-bold text-muted hover:text-ink"><Download className="size-4" />CSV</button>}>
+          <div className="space-y-2">
+            {f?.ingredients.map((i) => (
+              <div key={i.id} className={clsx("flex items-center gap-3 rounded-xl px-3 py-2.5", i.to_buy > 0 ? "bg-warn-soft" : "bg-canvas")}>
+                {i.to_buy > 0 ? <ShoppingCart className="size-4 text-[#b45309]" /> : <span className="size-4 rounded-full bg-ok/80" />}
+                <span className="flex-1 text-sm font-bold">{i.name}</span>
+                <span className="text-right text-xs text-muted">besoin {num(i.need)} {i.unit} · stock {num(i.stock)}</span>
+                {i.to_buy > 0 && <span className="w-24 text-right text-sm font-extrabold">+{num(i.to_buy)} {i.unit}</span>}
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </>
+  );
+}

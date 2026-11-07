@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
 import { AppDataProvider } from "@/components/app/app-data";
 import { BottomNav } from "@/components/app/bottom-nav";
-
-export const metadata: Metadata = { manifest: "/manifest.webmanifest" };
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   return (

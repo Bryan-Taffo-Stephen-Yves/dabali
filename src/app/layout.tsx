@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: "Votre cantine dans la poche : rechargez, réservez, scannez.",
   applicationName: "Dabali",
   appleWebApp: { capable: true, title: "Dabali", statusBarStyle: "default" },
-  icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {

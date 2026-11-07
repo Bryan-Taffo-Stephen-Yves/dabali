@@ -14,6 +14,8 @@ const TABS = [
 
 export function BottomNav() {
   const path = usePathname();
+  // Écrans avec leur propre bouton d'action en bas : pas de barre d'onglets
+  if (/^\/app\/(menu\/.+|recharger|transferer)/.test(path)) return null;
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))]">
       <div className="flex items-end justify-between rounded-[26px] border border-line bg-card/95 px-2 pb-2 pt-1.5 shadow-[var(--shadow-float)] backdrop-blur">
@@ -25,8 +27,8 @@ export function BottomNav() {
               <Link key={t.href} href={t.href} aria-label={t.label}
                 className="-mt-7 flex flex-1 flex-col items-center gap-1">
                 <span className={clsx(
-                  "grid size-[60px] place-items-center rounded-[22px] bg-lime text-ink shadow-[0_6px_18px_rgb(143_181_21/0.45)] ring-[5px] ring-canvas transition active:scale-95",
-                  active && "bg-ink text-lime shadow-none",
+                  "grid size-[60px] place-items-center rounded-[22px] ring-[5px] ring-canvas transition active:scale-95",
+                  active ? "bg-ink text-lime" : "bg-lime text-ink shadow-[0_6px_18px_rgb(143_181_21/0.45)]",
                 )}>
                   <Icon className="size-7" strokeWidth={2.2} />
                 </span>
