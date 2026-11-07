@@ -5,6 +5,7 @@ import { ShoppingCart, Download, Info } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { Card, PageTitle, Badge, Empty, Kpi, downloadCsv } from "@/components/admin/ui";
 import { ServiceBadge } from "@/components/app/service-icon";
+import { ForecastBrief } from "@/components/admin/forecast-brief";
 import { addDays, dayLong, dayShort, dayNum, fcfa, todayISO } from "@/lib/format";
 import type { ServiceKind } from "@/lib/types";
 
@@ -43,6 +44,8 @@ export default function ForecastPage() {
           ))}
         </div>
       </PageTitle>
+
+      <ForecastBrief date={date} />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi tone="dark" label="Repas attendus" value={f ? String(covers) : "…"} hint={dayLong(date)} />
