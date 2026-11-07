@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Check, X, LogOut, CameraOff, Keyboard } from "lucide-react";
+import { Check, X, LogOut, CameraOff, Keyboard, ShoppingCart } from "lucide-react";
+import Link from "next/link";
 import { edge, rpc, supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/logo";
 import { ServiceIcon } from "@/components/app/service-icon";
@@ -39,6 +40,25 @@ export default function ScanPage() {
   const router = useRouter();
   const video = useRef<HTMLVideoElement>(null);
   const [services, setServices] = useState<Services | null>(null);
+
+  // Fiche de courses attribuée à cet agent : pastille sur le panier (temps réel)
+  const [shopping, setShopping] = useState(0);
+  useEffect(() => {
+    const sb = supabase();
+    const count = async () => {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      const { data: l } = await sb.from("shopping_lists").select("id").eq("assigned_to", user.id).in("status", ["assigned", "shopping"]);
+      if (!l?.length) return setShopping(0);
+      const { count: n } = await sb.from("shopping_items").select("id", { count: "exact", head: true }).in("list_id", l.map((x) => x.id)).eq("status", "todo");
+      setShopping(n ?? 0);
+    };
+    count();
+    const ch = sb.channel("scan-shopping")
+      .on("postgres_changes", { event: "*", schema: "public", table: "shopping_lists" }, count)
+      .on("postgres_changes", { event: "*", schema: "public", table: "shopping_items" }, count).subscribe();
+    return () => { sb.removeChannel(ch); };
+  }, []);
   const [service, setService] = useState<ServiceKind>(() => currentService(null));
   const [scan, setScan] = useState<Scan | null>(null);
   const [fail, setFail] = useState<Fail | null>(null);
@@ -123,7 +143,13 @@ export default function ScanPage() {
           <p className="text-sm font-extrabold leading-tight">Scanner</p>
           <p className="text-[11px] text-white/60">{agent}</p>
         </div></div>
-        <button onClick={logout} aria-label="Déconnexion" className="grid size-10 place-items-center rounded-full bg-white/10"><LogOut className="size-4" /></button>
+        <span className="flex items-center gap-2">
+          <Link href="/courses" aria-label="Mes courses" className={clsx("relative grid size-10 place-items-center rounded-full", shopping ? "bg-lime text-ink" : "bg-white/10")}>
+            <ShoppingCart className="size-4" />
+            {shopping ? <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-err text-[10px] font-extrabold text-white">{shopping}</span> : null}
+          </Link>
+          <button onClick={logout} aria-label="Déconnexion" className="grid size-10 place-items-center rounded-full bg-white/10"><LogOut className="size-4" /></button>
+        </span>
       </header>
       <div className="flex gap-1.5 overflow-x-auto px-4 pb-3 [scrollbar-width:none]">
         {SERVICES.map((s) => (

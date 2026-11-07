@@ -8,6 +8,7 @@ const AREA_ROLES: Record<string, string[]> = {
   "/app": ["client", "agent", "caissier", "chef", "admin"],
   "/scan": ["agent", "admin"],
   "/admin": ["caissier", "chef", "admin"],
+  "/courses": ["agent", "caissier", "chef", "admin"],
 };
 
 
