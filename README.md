@@ -9,8 +9,8 @@ et suivi d'affluence par vision (YOLO). Projet du **Hackathon Restauration Vatel
 
 | Espace | Contenu |
 |---|---|
-| **`/app`** — appli client (PWA mobile) | Solde temps réel, recharge (Mobile Money simulé), menu de la semaine (ruptures en direct), fiche plat avec options et avis, achat (PIN au-delà de 5 000 FCFA), « Offrir un repas », tickets QR (hors ligne, passage au vert au scan, avis), transfert avec PIN, historique, fidélité (10 points = dessert offert), affluence du réfectoire, notifications |
-| **`/scan`** — scanner agent | Caméra plein écran, écran vert / rouge + son, motif du refus, compteur servis / vendus |
+| **`/app`** — appli client (PWA mobile) | Solde temps réel, recharge (Mobile Money simulé), menu de la semaine (ruptures en direct), achat de tickets **par type de repas** (petit-déjeuner 500, déjeuner 2 500, snack 700, dîner 2 500 FCFA ; 1 à 10 tickets ; entrée/dessert en supplément ; valables 48 h ; PIN au-delà de 5 000 FCFA), « Offrir des tickets », tickets QR (hors ligne, passage au vert au scan, avis), transfert avec PIN, historique, fidélité (10 points = 1 petit-déjeuner offert), affluence du réfectoire, notifications |
+| **`/scan`** — scanner agent | Caméra plein écran, onglet par service, écran vert / rouge + son, motif du refus ; après validation l'agent touche le plat choisi par le client (stock et portions décomptés) ; compteur servis / en circulation |
 | **`/admin`** — dashboard équipe | Vue d'ensemble temps réel, caisse (crédit espèces + reçu), menu hebdo (soumission, publication, date limite), plats + photos + recettes, prévisions + liste de courses, stock, ventes + CSV, gaspillage, avis, affluence (plan de salle), équipe + journal, paramètres |
 | **Supabase** | Schéma, RLS partout, RPC transactionnelles, Edge Functions QR signés HMAC, crons, Realtime |
 | **`vision/`** | YOLO11n + OpenCV, zones-tables, lissage 30 s / 60 s, envoi de chiffres uniquement |
@@ -61,7 +61,7 @@ Postgres ≥ 15 et Node ≥ 22.18 suffisent (les tests simulent `auth.uid()` et 
 ```bash
 PGHOST=localhost PGUSER=postgres supabase/tests/run.sh      # 191 vérifications SQL + QR + concurrence
 SUPABASE_URL=… SUPABASE_ANON_KEY=… scripts/smoke-remote.sh  # API bout en bout (consomme un ticket de démo)
-BASE=https://dabalix.netlify.app node scripts/e2e-deployed.js  # parcours complet dans un navigateur sur le site en ligne
+BASE=https://dabalix.netlify.app SCAN_DATE=AAAA-MM-JJ node scripts/e2e-deployed.js  # parcours complet dans un navigateur sur le site en ligne
 python -m pytest vision/ -q                                 # module vision
 ```
 

@@ -72,6 +72,18 @@ dabali/
 5. **Double scan** : `UPDATE tickets SET status='used' WHERE id=… AND status='valid' AND … RETURNING` — Postgres
    sérialise les deux mises à jour sur la ligne ; la seconde voit `status='used'` et ne retourne rien.
 
+## Tickets génériques (v2)
+
+Un ticket n'est plus lié à un plat : il porte un **type de repas** (`service` : breakfast, lunch, snack, dinner),
+ses suppléments, son prix et une validité de 48 h (`settings.ticket_validity_hours`). Prix et horaires : `settings.services`.
+
+1. `purchase_tickets(service, quantité, suppléments, pin, bénéficiaire, récompense)` — débit unique, N tickets.
+2. Au comptoir, `redeem_ticket` (via l'Edge Function, HMAC vérifié) passe le ticket à `used` et renvoie les plats du service.
+3. `serve_dish(ticket, menu_item)` enregistre le plat choisi : `sold_qty`/`served_qty` +1, stock décompté, avis proposé.
+
+`menu_items.sold_qty` compte donc les portions **servies** ; `is_full` = plat épuisé. Les prévisions répartissent
+les repas attendus d'un service entre ses plats selon les choix faits au comptoir les semaines précédentes.
+
 ## Décisions à valider
 
 | Sujet | Choix proposé | Raison |
