@@ -1,0 +1,51 @@
+"use client";
+import { useEffect, useState } from "react";
+import clsx from "clsx";
+import { Bell } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/app/page-header";
+import { useAppData } from "@/components/app/app-data";
+import { dateTime } from "@/lib/format";
+
+type N = { id: string; type: string; title: string; body: string | null; read_at: string | null; created_at: string };
+
+export default function NotificationsPage() {
+  const { refresh } = useAppData();
+  const [list, setList] = useState<N[] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const sb = supabase();
+      const { data: { user } } = await sb.auth.getUser();
+      const { data } = await sb.from("notifications").select("id, type, title, body, read_at, created_at")
+        .eq("user_id", user!.id).order("created_at", { ascending: false }).limit(50);
+      setList(data ?? []);
+      await sb.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user!.id).is("read_at", null);
+      refresh();
+    })();
+  }, [refresh]);
+
+  return (
+    <main>
+      <PageHeader title="Notifications" />
+      <div className="space-y-2.5 px-4">
+        {list === null && <div className="h-40 animate-pulse rounded-[22px] bg-card" />}
+        {list?.length === 0 && (
+          <div className="flex flex-col items-center rounded-[24px] border-2 border-dashed border-line p-10 text-center">
+            <Bell className="size-8 text-off" /><p className="mt-2 font-bold">Rien de neuf</p>
+          </div>
+        )}
+        {list?.map((n) => (
+          <div key={n.id} className={clsx("rounded-[20px] bg-card p-4 shadow-[var(--shadow-card)]", !n.read_at && "ring-2 ring-lime")}>
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-bold">{n.title}</p>
+              {!n.read_at && <span className="mt-1.5 size-2 shrink-0 rounded-full bg-lime-deep" />}
+            </div>
+            {n.body && <p className="mt-1 text-sm text-ink-2">{n.body}</p>}
+            <p className="mt-1.5 text-[11px] font-semibold text-off">{dateTime(n.created_at)}</p>
+          </div>
+        ))}
+      </div>
+    </main>
+  );
+}

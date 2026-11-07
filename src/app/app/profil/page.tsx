@@ -1,0 +1,106 @@
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import clsx from "clsx";
+import { LogOut, KeyRound, Bell, Sparkles, Gift, ChevronRight, LayoutDashboard, ScanLine } from "lucide-react";
+import { rpc, supabase } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/app/page-header";
+import { Qr } from "@/components/qr";
+import { Sheet } from "@/components/ui/sheet";
+import { PinPad } from "@/components/ui/pin-pad";
+import { useToast } from "@/components/ui/toast";
+import { useAppData } from "@/components/app/app-data";
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const toast = useToast();
+  const { profile, refresh } = useAppData();
+  const [pinStep, setPinStep] = useState<null | "old" | "new">(null);
+  const [oldPin, setOldPin] = useState("");
+  const [pinErr, setPinErr] = useState<string | null>(null);
+  const points = profile?.points ?? 0;
+
+  async function toggleSeats() {
+    if (!profile) return;
+    await supabase().from("profiles").update({ notify_free_seats: !profile.notify_free_seats }).eq("id", profile.id);
+    refresh();
+  }
+
+  async function onPin(pin: string) {
+    if (pinStep === "old") { setOldPin(pin); setPinErr(null); setPinStep("new"); return; }
+    const r = await rpc("set_pin", { p_pin: pin, p_current_pin: oldPin });
+    if (!r.ok) { setPinErr(r.message); if (r.code.startsWith("PIN_INVALID") || r.code === "PIN_LOCKED") setPinStep("old"); return; }
+    setPinStep(null);
+    toast("ok", "Code PIN modifié.");
+  }
+
+  async function logout() {
+    await supabase().auth.signOut();
+    try { ["dabali:me", "dabali:tickets", "dabali:qr"].forEach((k) => localStorage.removeItem(k)); } catch {}
+    router.replace("/connexion");
+    router.refresh();
+  }
+
+  return (
+    <main>
+      <PageHeader title="Profil" back={false} />
+      <div className="px-4">
+        <section className="flex flex-col items-center rounded-[28px] bg-card p-6 text-center shadow-[var(--shadow-card)]">
+          <span className="grid size-16 place-items-center rounded-full bg-lime text-2xl font-extrabold">
+            {profile?.full_name?.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+          </span>
+          <h2 className="mt-3 text-xl font-extrabold">{profile?.full_name}</h2>
+          <p className="text-sm text-muted">{profile?.phone}</p>
+          <div className="mt-5 w-44 rounded-2xl bg-white p-2 ring-1 ring-line">
+            {profile && <Qr value={`DABALI:${profile.short_code}`} size={180} />}
+          </div>
+          <p className="mt-3 rounded-full bg-ink px-4 py-1.5 text-lg font-extrabold tracking-wider text-lime">{profile?.short_code}</p>
+          <p className="mt-2 max-w-[240px] text-xs text-muted">Montrez ce QR pour recevoir un transfert ou un repas offert.</p>
+        </section>
+
+        <section id="fidelite" className="mt-4 rounded-[24px] bg-lime p-5">
+          <div className="flex items-center gap-2"><Sparkles className="size-5" /><h3 className="font-extrabold">Fidélité</h3></div>
+          <p className="mt-1 text-sm font-semibold text-ink/70">1 repas servi = 1 point · 10 points = 1 dessert offert</p>
+          <div className="mt-4 grid grid-cols-10 gap-1.5">
+            {Array.from({ length: 10 }, (_, i) => (
+              <span key={i} className={clsx("aspect-square rounded-full", i < Math.min(points, 10) ? "bg-ink" : "bg-white/60")} />
+            ))}
+          </div>
+          <p className="mt-3 text-sm font-bold">
+            {points >= 10 ? <span className="flex items-center gap-1.5"><Gift className="size-4" /> Dessert offert disponible au prochain achat</span> : `Encore ${10 - points} repas avant votre dessert`}
+          </p>
+        </section>
+
+        <div className="mt-4 divide-y divide-line overflow-hidden rounded-[24px] bg-card shadow-[var(--shadow-card)]">
+          <Row icon={Bell} label="Alerte places libres" hint="Prévenez-moi quand le réfectoire se vide"
+            right={<span className={clsx("h-7 w-12 rounded-full p-1 transition", profile?.notify_free_seats ? "bg-ink" : "bg-line")}>
+              <span className={clsx("block size-5 rounded-full transition", profile?.notify_free_seats ? "translate-x-5 bg-lime" : "bg-white")} /></span>}
+            onClick={toggleSeats} />
+          <Row icon={KeyRound} label="Changer mon code PIN" onClick={() => { setPinErr(null); setPinStep("old"); }} />
+          {profile && ["agent", "admin"].includes(profile.role) && <Row icon={ScanLine} label="Ouvrir le scanner" onClick={() => router.push("/scan")} />}
+          {profile && ["chef", "caissier", "admin"].includes(profile.role) && <Row icon={LayoutDashboard} label="Tableau de bord" onClick={() => router.push("/admin")} />}
+          <Row icon={LogOut} label="Se déconnecter" danger onClick={logout} />
+        </div>
+      </div>
+
+      <Sheet open={pinStep !== null} onClose={() => setPinStep(null)} title="Code PIN">
+        <PinPad key={pinStep} onComplete={onPin} error={pinErr} label={pinStep === "old" ? "Code actuel" : "Nouveau code"} />
+      </Sheet>
+    </main>
+  );
+}
+
+function Row({ icon: I, label, hint, right, onClick, danger }: {
+  icon: typeof Bell; label: string; hint?: string; right?: React.ReactNode; onClick: () => void; danger?: boolean;
+}) {
+  return (
+    <button onClick={onClick} className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-canvas">
+      <span className={clsx("grid size-10 place-items-center rounded-xl", danger ? "bg-err-soft text-err" : "bg-canvas")}><I className="size-[18px]" /></span>
+      <span className="flex-1">
+        <span className={clsx("block text-[15px] font-bold", danger && "text-err")}>{label}</span>
+        {hint && <span className="block text-xs text-muted">{hint}</span>}
+      </span>
+      {right ?? <ChevronRight className="size-5 text-off" />}
+    </button>
+  );
+}
