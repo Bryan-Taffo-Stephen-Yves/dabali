@@ -1,16 +1,18 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
-import { ChevronLeft, ChevronRight, Copy, Plus, Send, Globe, Trash2, Sun, Moon, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Plus, Send, Globe, Trash2, Clock } from "lucide-react";
+import { ServiceIcon } from "@/components/app/service-icon";
+import { SERVICES, type ServiceKind } from "@/lib/types";
 import { rpc, supabase } from "@/lib/supabase/client";
 import { Card, PageTitle, Badge, input } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useStaff } from "@/components/admin/admin-shell";
-import { addDays, dayShort, dayNum, duration, fcfa, todayISO, weekStart, dateTime } from "@/lib/format";
+import { addDays, dayShort, dayNum, duration, todayISO, weekStart, dateTime, SERVICE_LABEL } from "@/lib/format";
 
 type Menu = { id: string; week_start: string; status: "draft" | "submitted" | "published"; submitted_at: string | null; published_at: string | null };
-type Item = { id: string; service_date: string; service: "lunch" | "dinner"; dish_id: string; price: number; planned_qty: number | null; sold_qty: number; served_qty: number; is_sold_out: boolean; is_full: boolean; dish: { name: string } };
+type Item = { id: string; service_date: string; service: ServiceKind; dish_id: string; price: number; planned_qty: number | null; sold_qty: number; served_qty: number; is_sold_out: boolean; is_full: boolean; dish: { name: string } };
 type DishOpt = { id: string; name: string; base_price: number };
 
 const STATUS: Record<Menu["status"], { label: string; tone: "gray" | "warn" | "ok" }> = {
@@ -71,11 +73,12 @@ export default function MenuPlanner() {
     toast("ok", fn === "submit_menu" ? "Menu soumis à l'administration." : "Menu publié : les clients sont notifiés.");
     load();
   }
-  async function addItem(date: string, service: Item["service"], dishId: string) {
+  async function addItem(date: string, service: ServiceKind, dishId: string) {
     const d = dishes.find((x) => x.id === dishId);
     if (!d || !menu) return;
     const { error } = await supabase().from("menu_items").insert({
-      menu_id: menu.id, service_date: date, service, dish_id: d.id, price: d.base_price, planned_qty: service === "lunch" ? 30 : 20,
+      menu_id: menu.id, service_date: date, service, dish_id: d.id, price: d.base_price,
+      planned_qty: { breakfast: 25, lunch: 30, snack: 20, dinner: 20 }[service],
     });
     if (error) return toast("err", error.code === "23505" ? "Ce plat est déjà au menu de ce service." : "Ajout impossible.");
     load();
@@ -133,12 +136,12 @@ export default function MenuPlanner() {
                 <p className="font-extrabold">{dayShort(d)} {dayNum(d)}</p>
                 <span className="text-xs font-bold text-muted">{items.filter((i) => i.service_date === d).length} plats</span>
               </div>
-              {(["lunch", "dinner"] as const).map((s) => {
+              {SERVICES.map((s) => {
                 const list = items.filter((i) => i.service_date === d && i.service === s);
                 return (
                   <div key={s} className="border-t border-line px-3 py-3">
                     <p className="mb-2 flex items-center gap-1.5 px-1 text-xs font-extrabold uppercase tracking-wider text-muted">
-                      {s === "lunch" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}{s === "lunch" ? "Déjeuner" : "Dîner"}
+                      <ServiceIcon service={s} className="size-3.5" />{SERVICE_LABEL[s]}
                     </p>
                     <div className="space-y-1.5">
                       {list.map((i) => {
@@ -154,22 +157,18 @@ export default function MenuPlanner() {
                               {i.sold_qty === 0 && <button onClick={() => remove(i.id)} aria-label="Retirer" className="text-off hover:text-err"><Trash2 className="size-4" /></button>}
                             </div>
                             <div className="mt-1.5 flex items-center gap-2 text-xs">
-                              <label className="flex items-center gap-1 text-muted">Prix
-                                <input type="number" defaultValue={i.price} min={100} step={100} className="h-7 w-20 rounded-lg border border-line px-1.5 text-right font-bold text-ink"
-                                  onBlur={(e) => +e.target.value !== i.price && +e.target.value > 0 && patch(i.id, { price: +e.target.value })} />
-                              </label>
                               <label className="flex items-center gap-1 text-muted">Prévu
                                 <input type="number" defaultValue={i.planned_qty ?? ""} min={0} className="h-7 w-14 rounded-lg border border-line px-1.5 text-right font-bold text-ink"
                                   onBlur={(e) => { const v = e.target.value === "" ? null : +e.target.value; if (v !== i.planned_qty) patch(i.id, { planned_qty: v }); }} />
                               </label>
-                              <span className="ml-auto font-semibold text-muted" title="vendus / servis">{i.sold_qty}<span className="text-off">/{i.served_qty}</span></span>
+                              <span className="ml-auto font-semibold text-muted" title="portions servies">{i.served_qty} servis</span>
                             </div>
                           </div>
                         );
                       })}
                       <select value="" onChange={(e) => addItem(d, s, e.target.value)} className={clsx(input, "h-9 w-full text-muted")}>
                         <option value="">+ Ajouter un plat…</option>
-                        {dishes.filter((x) => !list.some((i) => i.dish_id === x.id)).map((x) => <option key={x.id} value={x.id}>{x.name} · {fcfa(x.base_price)}</option>)}
+                        {dishes.filter((x) => !list.some((i) => i.dish_id === x.id)).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                       </select>
                     </div>
                   </div>

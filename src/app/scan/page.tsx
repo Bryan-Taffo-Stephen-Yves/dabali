@@ -2,28 +2,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Check, X, LogOut, Sun, Moon, CameraOff, Keyboard } from "lucide-react";
+import { Check, X, LogOut, CameraOff, Keyboard } from "lucide-react";
 import { edge, rpc, supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/logo";
-import { todayISO, SERVICE_LABEL, time } from "@/lib/format";
-import type { Extra } from "@/lib/types";
+import { ServiceIcon } from "@/components/app/service-icon";
+import { DishImage } from "@/components/app/dish-image";
+import { currentService, fetchServices, type Services } from "@/lib/menu";
+import { todayISO, SERVICE_LABEL } from "@/lib/format";
+import { SERVICES, type Extra, type ServiceKind } from "@/lib/types";
 
-type Result =
-  | { ok: true; client: string; dish: string; extras: Extra[]; counters?: { sold: number; served: number } }
-  | { ok: false; code: string; message: string };
-
-/** Service affiché par défaut : déjeuner avant 16h, dîner ensuite (heure d'Abidjan = UTC) */
-function defaultService(): "lunch" | "dinner" {
-  return new Date().getUTCHours() < 16 ? "lunch" : "dinner";
-}
+type Dish = { menu_item_id: string; name: string; photo_url: string | null; available: boolean; left: number | null };
+type Scan = { ticket_id: string; client: string; ticket: string; extras: Extra[]; dishes: Dish[] };
+type Fail = { code: string; message: string };
+type Counters = { served: number; outstanding: number };
 
 // Sons générés (aucun fichier à charger)
 function beep(ok: boolean) {
   try {
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new Ctx();
-    const notes = ok ? [880, 1320] : [220, 180];
-    notes.forEach((f, i) => {
+    (ok ? [880, 1320] : [220, 180]).forEach((f, i) => {
       const o = ctx.createOscillator(), g = ctx.createGain();
       o.type = ok ? "sine" : "square";
       o.frequency.value = f;
@@ -40,27 +38,26 @@ function beep(ok: boolean) {
 export default function ScanPage() {
   const router = useRouter();
   const video = useRef<HTMLVideoElement>(null);
-  const [service, setService] = useState<"lunch" | "dinner">(defaultService);
-  const [result, setResult] = useState<Result | null>(null);
-  const [counters, setCounters] = useState<{ sold: number; served: number } | null>(null);
+  const [services, setServices] = useState<Services | null>(null);
+  const [service, setService] = useState<ServiceKind>(() => currentService(null));
+  const [scan, setScan] = useState<Scan | null>(null);
+  const [fail, setFail] = useState<Fail | null>(null);
+  const [served, setServed] = useState<string | null>(null);
+  const [counters, setCounters] = useState<Counters | null>(null);
   const [camErr, setCamErr] = useState<string | null>(null);
-  const [agent, setAgent] = useState<string>("");
+  const [agent, setAgent] = useState("");
   const [manual, setManual] = useState(false);
   const busy = useRef(false);
   const lastToken = useRef<{ t: string; at: number } | null>(null);
   const date = todayISO();
 
   const loadCounters = useCallback(() => {
-    rpc<{ sold: number; served: number }>("service_counters", { p_date: date, p_service: service })
-      .then((r) => r.ok !== false && setCounters(r as unknown as { sold: number; served: number }));
+    rpc<Counters>("service_counters", { p_date: date, p_service: service })
+      .then((r) => r.ok !== false && setCounters(r as unknown as Counters));
   }, [date, service]);
 
-  useEffect(() => {
-    loadCounters();
-    const id = setInterval(loadCounters, 20_000);
-    return () => clearInterval(id);
-  }, [loadCounters]);
-
+  useEffect(() => { fetchServices().then((s) => { setServices(s); setService(currentService(s)); }); }, []);
+  useEffect(() => { loadCounters(); const id = setInterval(loadCounters, 20_000); return () => clearInterval(id); }, [loadCounters]);
   useEffect(() => {
     supabase().auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
@@ -69,20 +66,29 @@ export default function ScanPage() {
     });
   }, []);
 
+  const reset = useCallback(() => { setScan(null); setFail(null); setServed(null); busy.current = false; }, []);
+
   const redeem = useCallback(async (token: string) => {
     const now = Date.now();
     if (busy.current) return;
-    if (lastToken.current && lastToken.current.t === token && now - lastToken.current.at < 4000) return; // même QR encore devant la caméra
+    if (lastToken.current && lastToken.current.t === token && now - lastToken.current.at < 4000) return;
     busy.current = true;
     lastToken.current = { t: token, at: now };
-    const r = await edge<{ client: string; dish: string; extras: Extra[]; counters: { sold: number; served: number } }>(
-      "redeem-ticket", { token, service_date: date, service });
-    const res = r as Result;
-    setResult(res);
-    beep(res.ok);
-    if (res.ok && res.counters) setCounters(res.counters);
-    setTimeout(() => { setResult(null); busy.current = false; }, res.ok ? 1800 : 2600);
-  }, [date, service]);
+    const r = await edge<Scan>("redeem-ticket", { token, service_date: date, service });
+    beep(r.ok);
+    if (r.ok) { setScan(r as unknown as Scan); loadCounters(); }
+    else { setFail(r as Fail); setTimeout(reset, 2800); }
+  }, [date, service, loadCounters, reset]);
+
+  async function serve(d: Dish) {
+    if (!scan) return;
+    const r = await rpc<{ dish: string }>("serve_dish", { p_ticket_id: scan.ticket_id, p_menu_item_id: d.menu_item_id });
+    if (!r.ok) { setFail(r as Fail); beep(false); setScan(null); setTimeout(reset, 2500); return; }
+    setServed(r.dish);
+    setScan(null);
+    loadCounters();
+    setTimeout(reset, 1300);
+  }
 
   useEffect(() => {
     let stop: (() => void) | undefined;
@@ -112,21 +118,21 @@ export default function ScanPage() {
 
   return (
     <main className="no-overscroll fixed inset-0 flex flex-col bg-ink text-white">
-      <header className="flex items-center justify-between gap-2 px-4 pb-3 pt-[max(0.8rem,env(safe-area-inset-top))]">
+      <header className="flex items-center justify-between gap-2 px-4 pb-2 pt-[max(0.8rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-2"><Logo mark /><div>
           <p className="text-sm font-extrabold leading-tight">Scanner</p>
           <p className="text-[11px] text-white/60">{agent}</p>
         </div></div>
-        <div className="flex rounded-full bg-white/10 p-1">
-          {(["lunch", "dinner"] as const).map((s) => (
-            <button key={s} onClick={() => setService(s)}
-              className={clsx("flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold transition", service === s ? "bg-lime text-ink" : "text-white/70")}>
-              {s === "lunch" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}{SERVICE_LABEL[s]}
-            </button>
-          ))}
-        </div>
         <button onClick={logout} aria-label="Déconnexion" className="grid size-10 place-items-center rounded-full bg-white/10"><LogOut className="size-4" /></button>
       </header>
+      <div className="flex gap-1.5 overflow-x-auto px-4 pb-3 [scrollbar-width:none]">
+        {SERVICES.map((s) => (
+          <button key={s} onClick={() => setService(s)}
+            className={clsx("flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-bold transition", service === s ? "bg-lime text-ink" : "bg-white/10 text-white/70")}>
+            <ServiceIcon service={s} className="size-3.5" />{services?.[s].label ?? SERVICE_LABEL[s]}
+          </button>
+        ))}
+      </div>
 
       <div className="relative mx-4 flex-1 overflow-hidden rounded-[28px] bg-black">
         <video ref={video} className="size-full object-cover" muted playsInline />
@@ -146,37 +152,65 @@ export default function ScanPage() {
             <CameraOff className="size-10 text-white/50" /><p className="font-semibold text-white/80">{camErr}</p>
           </div>
         )}
-        <p className="absolute inset-x-0 bottom-4 text-center text-sm font-semibold text-white/80">Placez le QR du client dans le cadre</p>
+        <p className="absolute inset-x-0 bottom-4 text-center text-sm font-semibold text-white/80">Ticket {SERVICE_LABEL[service]} · placez le QR dans le cadre</p>
       </div>
 
       <footer className="flex items-center gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
         <div className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-white/60">{SERVICE_LABEL[service]} · servis / vendus</p>
-          <p className="text-2xl font-extrabold"><span className="text-lime">{counters?.served ?? "–"}</span><span className="text-white/50"> / {counters?.sold ?? "–"}</span></p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-white/60">{SERVICE_LABEL[service]} · servis aujourd&apos;hui</p>
+          <p className="text-2xl font-extrabold"><span className="text-lime">{counters?.served ?? "–"}</span>
+            <span className="text-base font-bold text-white/50"> · {counters?.outstanding ?? "–"} tickets en circulation</span></p>
         </div>
         <button onClick={() => setManual(true)} className="grid size-14 place-items-center rounded-2xl bg-white/10" aria-label="Saisie manuelle"><Keyboard className="size-6" /></button>
       </footer>
 
       {manual && <ManualEntry onClose={() => setManual(false)} onSubmit={(t) => { setManual(false); redeem(t); }} />}
 
-      {result && (
-        <div className={clsx("fixed inset-0 z-50 flex flex-col items-center justify-center px-8 text-center", result.ok ? "bg-ok" : "bg-err")} role="alert">
-          <span className="animate-pop grid size-32 place-items-center rounded-full bg-white">
-            {result.ok ? <Check className="size-20 text-ok" strokeWidth={3} /> : <X className="size-20 text-err" strokeWidth={3} />}
-          </span>
-          {result.ok ? (
-            <>
-              <p className="mt-8 text-4xl font-extrabold">{result.client}</p>
-              <p className="mt-2 text-2xl font-bold opacity-95">{result.dish}</p>
-              {result.extras?.length > 0 && <p className="mt-3 rounded-full bg-white/20 px-4 py-1.5 text-lg font-bold">+ {result.extras.map((e) => e.name).join(" · ")}</p>}
-              <p className="mt-6 text-sm font-semibold opacity-80">Validé à {time(new Date().toISOString())}</p>
-            </>
-          ) : (
-            <>
-              <p className="mt-8 text-4xl font-extrabold">Refusé</p>
-              <p className="mt-3 max-w-sm text-2xl font-bold opacity-95">{result.message}</p>
-            </>
+      {/* Ticket validé : choix du plat servi */}
+      {scan && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-ok" role="dialog" aria-label="Ticket validé">
+          <div className="flex items-center gap-4 px-5 pb-4 pt-[max(1.2rem,env(safe-area-inset-top))]">
+            <span className="animate-pop grid size-16 shrink-0 place-items-center rounded-full bg-white"><Check className="size-10 text-ok" strokeWidth={3} /></span>
+            <div className="min-w-0">
+              <p className="truncate text-2xl font-extrabold">{scan.client}</p>
+              <p className="text-lg font-bold opacity-90">Ticket {scan.ticket} valide</p>
+            </div>
+          </div>
+          {scan.extras?.length > 0 && (
+            <p className="mx-5 mb-3 rounded-2xl bg-white/20 px-4 py-2.5 text-lg font-extrabold">+ {scan.extras.map((e) => e.name).join(" · ")}</p>
           )}
+          <p className="px-5 pb-2 text-sm font-bold uppercase tracking-wider opacity-80">Plat servi</p>
+          <div className="grid flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto px-5 pb-4">
+            {scan.dishes.map((d) => (
+              <button key={d.menu_item_id} disabled={!d.available} onClick={() => serve(d)}
+                className="overflow-hidden rounded-3xl bg-white text-left text-ink shadow-lg transition active:scale-95 disabled:opacity-40">
+                <DishImage name={d.name} src={d.photo_url} rounded="rounded-none" className="h-24 w-full" />
+                <div className="p-3">
+                  <p className="text-[15px] font-extrabold leading-tight">{d.name}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-muted">{!d.available ? "Épuisé" : d.left === null ? "Disponible" : `${d.left} restants`}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="px-5 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <button onClick={reset} className="h-12 w-full rounded-full bg-white/20 font-bold">Plat non précisé</button>
+          </div>
+        </div>
+      )}
+
+      {served && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-ok px-8 text-center" role="alert">
+          <span className="animate-pop grid size-28 place-items-center rounded-full bg-white"><Check className="size-16 text-ok" strokeWidth={3} /></span>
+          <p className="mt-6 text-3xl font-extrabold">Servi</p>
+          <p className="mt-2 text-xl font-bold opacity-95">{served}</p>
+        </div>
+      )}
+
+      {fail && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-err px-8 text-center" role="alert">
+          <span className="animate-pop grid size-32 place-items-center rounded-full bg-white"><X className="size-20 text-err" strokeWidth={3} /></span>
+          <p className="mt-8 text-4xl font-extrabold">Refusé</p>
+          <p className="mt-3 max-w-sm text-2xl font-bold opacity-95">{fail.message}</p>
         </div>
       )}
     </main>

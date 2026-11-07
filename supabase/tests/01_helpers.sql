@@ -21,6 +21,7 @@ create function tests.item(p_name text) returns uuid language sql immutable as $
     when 'garba_lunch'    then '00000000-0000-0000-0001-000000000002'
     when 'attieke_dinner' then '00000000-0000-0000-0001-000000000003'
     when 'vip_dinner'     then '00000000-0000-0000-0001-000000000004'
+    when 'omelette_bf'    then '00000000-0000-0000-0001-000000000005'
   end::uuid
 $$;
 
@@ -28,6 +29,8 @@ create function tests.extra(p_name text) returns uuid language sql immutable as 
   select case p_name
     when 'dessert' then '00000000-0000-0000-0002-000000000001'
     when 'bissap'  then '00000000-0000-0000-0002-000000000002'
+    when 'crudites' then '00000000-0000-0000-0002-000000000003'
+    when 'avocat'  then '00000000-0000-0000-0002-000000000004'
   end::uuid
 $$;
 
@@ -128,8 +131,10 @@ begin
     values ('Poisson', 'kg', 10, 9.9, 3000) returning id into v_ing;
   insert into public.recipe_lines values (v_attieke, v_ing, 0.2);
   insert into public.extras (id, name, price, kind) values
-    (tests.extra('dessert'), 'Salade de fruits', 500, 'dessert'),
-    (tests.extra('bissap'),  'Bissap', 300, 'drink');
+    (tests.extra('dessert'),  'Salade de fruits', 500, 'dessert'),
+    (tests.extra('crudites'), 'Salade de crudités', 500, 'starter'),
+    (tests.extra('avocat'),   'Avocat vinaigrette', 500, 'starter');
+  insert into public.extras (id, name, price, kind, is_active) values (tests.extra('bissap'), 'Bissap', 300, 'drink', false);
 
   insert into public.menus (week_start, status, published_at)
     values (date_trunc('week', d)::date, 'published', now()) returning id into v_menu;
@@ -137,5 +142,6 @@ begin
     (tests.item('attieke_lunch'),  v_menu, d, 'lunch',  v_attieke, 2500, 2),
     (tests.item('garba_lunch'),    v_menu, d, 'lunch',  v_garba,   1500, null),
     (tests.item('attieke_dinner'), v_menu, d, 'dinner', v_attieke, 2500, 50),
-    (tests.item('vip_dinner'),     v_menu, d, 'dinner', v_vip,     6000, 10);
+    (tests.item('vip_dinner'),     v_menu, d, 'dinner', v_vip,     6000, 10),
+    (tests.item('omelette_bf'),    v_menu, d, 'breakfast', v_garba, 500, 30);
 end $$;

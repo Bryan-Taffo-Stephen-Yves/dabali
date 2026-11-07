@@ -5,16 +5,18 @@ import { supabase } from "@/lib/supabase/client";
 import { Card, PageTitle, input } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { SERVICES, type ServiceKind } from "@/lib/types";
 
 type Settings = {
-  services: { lunch: { label: string; start: string; end: string }; dinner: { label: string; start: string; end: string } };
+  services: Record<ServiceKind, { label: string; start: string; end: string; price: number; extras: boolean }>;
+  ticket_validity_hours: number;
   menu_deadline: { weekday: number; time: string };
   cancel_cutoff_minutes: number;
   presale_days: number;
   pin_threshold: number;
   transfer_limits: { min: number; max: number; daily_max: number };
   recharge_limits: { min: number; max: number };
-  loyalty: { points_per_ticket: number; reward_points: number };
+  loyalty: { points_per_ticket: number; reward_points: number; reward_service?: ServiceKind };
   low_balance_threshold: number;
   service_days: number[];
 };
@@ -52,28 +54,39 @@ export default function SettingsPage() {
 
   if (!s) return <div className="h-96 animate-pulse rounded-[22px] bg-card" />;
   const set = (patch: Partial<Settings>) => setS({ ...s, ...patch });
+  const setSvc = (k: ServiceKind, patch: Partial<Settings["services"][ServiceKind]>) =>
+    setS({ ...s, services: { ...s.services, [k]: { ...s.services[k], ...patch } } });
   return (
     <>
       <PageTitle title="Paramètres"><Button loading={busy} onClick={save}>Enregistrer</Button></PageTitle>
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card title="Services">
-          {(["lunch", "dinner"] as const).map((k) => (
-            <Row key={k} label={s.services[k].label}>
-              <span className="flex items-center gap-2">
-                <input type="time" value={s.services[k].start} onChange={(e) => set({ services: { ...s.services, [k]: { ...s.services[k], start: e.target.value } } })} className={input} />
-                <span className="text-muted">→</span>
-                <input type="time" value={s.services[k].end} onChange={(e) => set({ services: { ...s.services, [k]: { ...s.services[k], end: e.target.value } } })} className={input} />
-              </span>
-            </Row>
+        <Card title="Tickets par type de repas" subtitle="Horaires du service, prix du ticket, suppléments autorisés">
+          {SERVICES.map((k) => (
+            <div key={k} className="border-b border-line py-3 last:border-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-bold">{s.services[k]?.label ?? k}</p>
+                <span className="flex items-center gap-2">
+                  <input type="time" value={s.services[k]?.start ?? ""} onChange={(e) => setSvc(k, { start: e.target.value })} className={input} />
+                  <span className="text-muted">→</span>
+                  <input type="time" value={s.services[k]?.end ?? ""} onChange={(e) => setSvc(k, { end: e.target.value })} className={input} />
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <N value={s.services[k]?.price ?? 0} onChange={(v) => setSvc(k, { price: v })} suffix="FCFA le ticket" />
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <input type="checkbox" checked={!!s.services[k]?.extras} onChange={(e) => setSvc(k, { extras: e.target.checked })} className="size-4 accent-[#16181D]" />
+                  Entrée / dessert en supplément
+                </label>
+              </div>
+            </div>
           ))}
+          <Row label="Validité d'un ticket" hint="à partir de l'achat"><N value={s.ticket_validity_hours ?? 48} onChange={(v) => set({ ticket_validity_hours: v })} suffix="heures" /></Row>
           <Row label="Jours de service">
             <span className="flex gap-1">{[1, 2, 3, 4, 5, 6, 7].map((d) => (
               <button key={d} onClick={() => set({ service_days: s.service_days.includes(d) ? s.service_days.filter((x) => x !== d) : [...s.service_days, d].sort() })}
                 className={clsx("size-9 rounded-lg text-xs font-bold", s.service_days.includes(d) ? "bg-ink text-white" : "bg-canvas")}>{DAYS[d]}</button>
             ))}</span>
           </Row>
-          <Row label="Achat à l'avance" hint="sur le menu publié"><N value={s.presale_days} onChange={(v) => set({ presale_days: v })} suffix="jours" /></Row>
-          <Row label="Annulation possible jusqu'à" hint="avant le début du service"><N value={s.cancel_cutoff_minutes} onChange={(v) => set({ cancel_cutoff_minutes: v })} suffix="min" /></Row>
         </Card>
         <Card title="Menu hebdomadaire">
           <Row label="Date limite de soumission" hint="semaine précédente">
@@ -95,9 +108,14 @@ export default function SettingsPage() {
         </Card>
         <Card title="Fidélité">
           <Row label="Points par repas servi"><N value={s.loyalty.points_per_ticket} onChange={(v) => set({ loyalty: { ...s.loyalty, points_per_ticket: v } })} /></Row>
-          <Row label="Points pour un dessert offert"><N value={s.loyalty.reward_points} onChange={(v) => set({ loyalty: { ...s.loyalty, reward_points: v } })} /></Row>
+          <Row label="Points pour un ticket offert"><N value={s.loyalty.reward_points} onChange={(v) => set({ loyalty: { ...s.loyalty, reward_points: v } })} /></Row>
+          <Row label="Ticket offert">
+            <select value={s.loyalty.reward_service ?? "breakfast"} onChange={(e) => set({ loyalty: { ...s.loyalty, reward_service: e.target.value as ServiceKind } })} className={input}>
+              {SERVICES.map((k) => <option key={k} value={k}>{s.services[k]?.label ?? k}</option>)}
+            </select>
+          </Row>
         </Card>
-        <Card title="Options (desserts, boissons)">
+        <Card title="Suppléments (entrées, desserts)">
           {extras.map((e, i) => (
             <Row key={e.id} label="">
               <span className="flex w-full items-center gap-2">

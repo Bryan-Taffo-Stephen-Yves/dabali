@@ -25,7 +25,8 @@ begin
 end $$;
 
 create temp table seed_sales (
-  menu_item_id uuid, user_id uuid, created_at timestamptz, status public.ticket_status, extra_ids uuid[]
+  menu_item_id uuid, user_id uuid, created_at timestamptz, status public.ticket_status, extra_ids uuid[],
+  service public.service_kind, service_date date, used_at timestamptz
 );
 
 do $$
@@ -39,7 +40,11 @@ declare
                           'Grâce','Hervé','Inès','Jean-Marc','Kadi','Lamine','Nadia','Olivier','Prisca','Rachelle'];
   v_last  text[] := array['Konan','Kouadio','N''Guessan','Koné','Traoré','Ouattara','Bamba','Diabaté','Yao','Kouamé',
                           'Coulibaly','Touré','Gnagne','Aka','Brou','Assi','Tanoh','Ahoua','Zadi','Gbagbo'];
-  v_cat_jour int; v_cat_grill int; v_cat_veg int;
+  v_cat_jour int; v_cat_grill int; v_cat_veg int; v_cat_bf int; v_cat_snack int;
+  v_mains uuid[]; v_bf uuid[]; v_sn uuid[];
+  v_prices jsonb := public.setting('services');
+  v_att int; v_weights numeric[]; v_items uuid[]; v_left int[]; v_pick int; v_acc numeric; v_r numeric;
+  v_bf_items uuid[]; v_sn_items uuid[];
   wk record;
   v_menu uuid;
   v_status public.menu_status;
@@ -88,7 +93,8 @@ begin
   insert into public.categories (name, sort) values ('Plat du jour', 1) returning id into v_cat_jour;
   insert into public.categories (name, sort) values ('Grillades', 2) returning id into v_cat_grill;
   insert into public.categories (name, sort) values ('Végétarien', 3) returning id into v_cat_veg;
-  insert into public.categories (name, sort) values ('Desserts', 4), ('Boissons', 5);
+  insert into public.categories (name, sort) values ('Petit-déjeuner', 0) returning id into v_cat_bf;
+  insert into public.categories (name, sort) values ('Snack', 4) returning id into v_cat_snack;
 
   insert into public.dishes (name, category_id, description, composition, kcal, weight_g, allergens, base_price) values
     ('Attiéké poisson braisé', v_cat_grill, 'Le grand classique d''Abidjan : poisson braisé au feu de bois, attiéké frais.',
@@ -108,13 +114,33 @@ begin
     ('Spaghetti sautés', v_cat_jour, 'Spaghetti sautés comme au maquis : sauce tomate pimentée, légumes croquants et saucisse.',
        'Spaghetti, saucisse, tomate, poivron, carotte, oignons, piment', 640, 450, '{gluten}', 1500),
     ('Salade composée', v_cat_veg, 'Salade fraîche et croquante, œufs durs, vinaigrette citron.',
-       'Laitue, concombre, maïs, carotte, chou rouge, œufs durs', 380, 350, '{œuf,moutarde}', 1500);
+       'Laitue, concombre, maïs, carotte, chou rouge, œufs durs', 380, 350, '{œuf,moutarde}', 1500),
+    -- Petit-déjeuner
+    ('Pain beurre & café au lait', v_cat_bf, 'Pain frais beurré et grand café au lait sucré.',
+       'Pain, beurre, café, lait, sucre', 420, 300, '{gluten,lait}', 500),
+    ('Omelette pain', v_cat_bf, 'Omelette aux oignons et tomates dans un pain croustillant.',
+       'Œufs, oignons, tomate, pain', 480, 280, '{œuf,gluten}', 500),
+    ('Bouillie de mil', v_cat_bf, 'Bouillie de mil au lait, parfumée au citron.',
+       'Mil, lait, sucre, citron', 350, 350, '{lait}', 500),
+    -- Snack
+    ('Crêpes sucrées', v_cat_snack, 'Trois crêpes maison au sucre ou au chocolat.',
+       'Farine, œufs, lait, sucre, chocolat', 450, 200, '{gluten,œuf,lait}', 700),
+    ('Brownie', v_cat_snack, 'Brownie fondant au chocolat.',
+       'Chocolat, farine, œufs, beurre, sucre', 420, 120, '{gluten,œuf,lait}', 700),
+    ('Pain perdu', v_cat_snack, 'Pain perdu doré à la cannelle.',
+       'Pain, œufs, lait, sucre, cannelle', 400, 180, '{gluten,œuf,lait}', 700),
+    ('Croque-monsieur', v_cat_snack, 'Croque-monsieur jambon fromage, bien gratiné.',
+       'Pain de mie, jambon, fromage, beurre', 480, 200, '{gluten,lait}', 700);
 
   insert into public.extras (name, price, kind, sort) values
     ('Salade de fruits', 500, 'dessert', 1), ('Yaourt', 500, 'dessert', 2), ('Gâteau', 500, 'dessert', 3),
     ('Orange (coupée en 4)', 200, 'dessert', 4), ('Pastèque (une part)', 300, 'dessert', 5),
     ('Ananas (2 tranches)', 300, 'dessert', 6), ('Mangue (2 tranches)', 300, 'dessert', 7),
     ('Bissap', 300, 'drink', 14), ('Gnamakoudji', 300, 'drink', 15), ('Eau minérale', 200, 'drink', 16);
+  -- Suppléments au choix à l'achat : une entrée et/ou un dessert (boissons désactivées)
+  insert into public.extras (name, price, kind, sort) values
+    ('Salade de crudités', 500, 'starter', 0), ('Avocat vinaigrette', 500, 'starter', 0);
+  update public.extras set is_active = false where kind = 'drink';
 
   -- ───────────── Stock & recettes ─────────────
   insert into public.ingredients (name, unit, stock_qty, alert_threshold, unit_cost) values
@@ -122,7 +148,9 @@ begin
     ('Riz', 'kg', 60, 20, 600), ('Graine de palme', 'kg', 14, 8, 700), ('Pâte d''arachide', 'kg', 6, 5, 1500),
     ('Banane plantain', 'kg', 35, 15, 400), ('Manioc (placali)', 'kg', 12, 6, 500), ('Feuilles kplala', 'kg', 3, 4, 800),
     ('Tomate', 'kg', 20, 8, 700), ('Oignon', 'kg', 15, 6, 600), ('Huile', 'L', 22, 8, 1400),
-    ('Spaghetti', 'kg', 10, 5, 900), ('Thon', 'kg', 4, 6, 2200), ('Crudités', 'kg', 9, 4, 1000);
+    ('Spaghetti', 'kg', 10, 5, 900), ('Thon', 'kg', 4, 6, 2200), ('Crudités', 'kg', 9, 4, 1000),
+    ('Pain', 'pièce', 120, 40, 100), ('Œufs', 'pièce', 180, 60, 100), ('Lait', 'L', 25, 10, 900),
+    ('Farine', 'kg', 15, 5, 700), ('Sucre', 'kg', 12, 4, 800), ('Chocolat', 'kg', 4, 2, 4000), ('Mil', 'kg', 10, 4, 600);
 
   insert into public.recipe_lines (dish_id, ingredient_id, qty_per_portion)
   select d.id, i.id, r.qty
@@ -139,7 +167,13 @@ begin
       ('Foutou banane sauce graine', 'Banane plantain', 0.45), ('Foutou banane sauce graine', 'Graine de palme', 0.15),
       ('Foutou banane sauce graine', 'Poulet', 0.20),
       ('Spaghetti sautés', 'Spaghetti', 0.15), ('Spaghetti sautés', 'Tomate', 0.08), ('Spaghetti sautés', 'Huile', 0.03),
-      ('Salade composée', 'Crudités', 0.25), ('Salade composée', 'Tomate', 0.06)) as r(dish, ing, qty)
+      ('Salade composée', 'Crudités', 0.25), ('Salade composée', 'Tomate', 0.06),
+      ('Pain beurre & café au lait', 'Pain', 1), ('Pain beurre & café au lait', 'Lait', 0.2),
+      ('Omelette pain', 'Œufs', 2), ('Omelette pain', 'Pain', 1), ('Bouillie de mil', 'Mil', 0.08), ('Bouillie de mil', 'Lait', 0.15),
+      ('Crêpes sucrées', 'Farine', 0.08), ('Crêpes sucrées', 'Œufs', 1), ('Crêpes sucrées', 'Lait', 0.15),
+      ('Brownie', 'Chocolat', 0.04), ('Brownie', 'Farine', 0.03), ('Brownie', 'Œufs', 1),
+      ('Pain perdu', 'Pain', 1), ('Pain perdu', 'Œufs', 1), ('Pain perdu', 'Lait', 0.1),
+      ('Croque-monsieur', 'Pain', 1)) as r(dish, ing, qty)
     join public.dishes d on d.name = r.dish
     join public.ingredients i on i.name = r.ing;
 
@@ -168,81 +202,115 @@ begin
 
     for k in 0..5 loop   -- lundi → samedi
       v_day := wk.ws + k;
-      -- Rotation des plats : 5 au déjeuner (4 le samedi), 4 au dîner
-      select array_agg(id order by md5(name || v_day::text)) into v_lunch from public.dishes;
-      v_dinner := v_lunch[5:8];
-      v_lunch := v_lunch[1:case when k = 5 then 4 else 5 end];
-      -- L'attiéké poisson est servi tous les midis (plat phare)
+      -- Rotation des plats principaux : 5 au déjeuner (4 le samedi), 4 au dîner ; 3 au petit-déjeuner, 3 au snack
+      select array_agg(id order by md5(name || v_day::text)) into v_mains from public.dishes
+       where category_id not in (v_cat_bf, v_cat_snack);
+      v_dinner := v_mains[5:8];
+      v_lunch := v_mains[1:case when k = 5 then 4 else 5 end];
       select id into v_dish from public.dishes where name = 'Attiéké poisson braisé';
       if not v_dish = any (v_lunch) then v_lunch[1] := v_dish; end if;
+      select array_agg(id) into v_bf from public.dishes where category_id = v_cat_bf;
+      select (array_agg(id order by md5(name || v_day::text)))[1:3] into v_sn from public.dishes where category_id = v_cat_snack;
 
-      foreach v_svc in array array['lunch', 'dinner']::public.service_kind[] loop
-        if k = 5 and v_svc = 'dinner' then continue; end if;
-        foreach v_dish in array case v_svc when 'lunch' then v_lunch else v_dinner end loop
+      foreach v_svc in array enum_range(null::public.service_kind) loop
+        if k = 5 and v_svc in ('dinner', 'snack') then continue; end if;
+        foreach v_dish in array case v_svc when 'lunch' then v_lunch when 'dinner' then v_dinner
+                                           when 'breakfast' then v_bf else v_sn end loop
           insert into public.menu_items (menu_id, service_date, service, dish_id, price, planned_qty)
           select v_menu, v_day, v_svc, id, base_price,
-                 (case v_svc when 'lunch' then 40 else 25 end *
+                 (case v_svc when 'lunch' then 40 when 'dinner' then 25 else 22 end *
                   case name when 'Attiéké poisson braisé' then 1.0 when 'Garba' then 0.9 when 'Alloco poulet braisé' then 0.85
                             when 'Riz sauce arachide poulet' then 0.8 when 'Riz sauce graine' then 0.7
                             when 'Foutou banane sauce graine' then 0.6 when 'Spaghetti sautés' then 0.55
-                            when 'Placali sauce kplala' then 0.5 else 0.4 end)::int
+                            when 'Placali sauce kplala' then 0.5 when 'Salade composée' then 0.4 else 1.0 end)::int
             from public.dishes where id = v_dish;
         end loop;
       end loop;
     end loop;
   end loop;
 
-  -- ───────────── Ventes : historique + précommandes ─────────────
+  -- ───────────── Ventes : tickets par type de repas ─────────────
+  -- Services passés : N clients servis (le plat choisi au comptoir suit la popularité) + quelques tickets expirés.
   for v_item in
-    select mi.*, d.name as dish_name, m.status as menu_status
-      from public.menu_items mi join public.menus m on m.id = mi.menu_id join public.dishes d on d.id = mi.dish_id
-     where m.status = 'published'
+    select mi.service_date, mi.service from public.menu_items mi join public.menus m on m.id = mi.menu_id
+     where m.status = 'published' group by 1, 2 order by 1, 2
   loop
     select * into v_win from public.service_window(v_item.service_date, v_item.service);
-    if v_win.ends_at < now() then
-      -- service passé : ventes réalistes (lundi plus calme, vendredi plus chargé)
-      v_n := least(v_item.planned_qty, round(v_item.planned_qty * (0.55 + 0.4 * random()) *
-             case extract(isodow from v_item.service_date) when 1 then 0.85 when 5 then 1.1 when 6 then 0.7 else 1 end)::int);
-    elsif v_item.service_date <= v_today + 7 then
-      -- service à venir : précommandes, plus nombreuses quand le service approche
-      v_n := round(v_item.planned_qty * greatest(0.05, 0.6 - 0.08 * (v_item.service_date - v_today)) * (0.6 + 0.6 * random()))::int;
-      v_n := least(v_n, v_item.planned_qty - 2);
-    else
-      v_n := 0;
-    end if;
-
-    for i in 1..greatest(v_n, 0) loop
-      insert into seed_sales values (
-        v_item.id,
-        v_clients[2 + floor(random() * 29)::int],
-        least(now() - interval '5 minutes', v_win.starts_at - (interval '20 minutes' + random() * interval '40 hours')),
-        (case when v_win.ends_at >= now() then 'valid'
-              when random() < 0.08 then 'expired' else 'used' end)::public.ticket_status,
-        case when random() < 0.3 then array[(select id from public.extras where kind = 'drink' order by random() limit 1)] else '{}' end
-          || case when random() < 0.2 then array[(select id from public.extras where kind = 'dessert' order by random() limit 1)] else '{}'::uuid[] end);
+    continue when v_win.ends_at >= now();
+    v_att := round(case v_item.service when 'lunch' then 150 when 'dinner' then 85 when 'breakfast' then 55 else 45 end
+                   * (0.75 + 0.25 * random())
+                   * case extract(isodow from v_item.service_date) when 1 then 0.85 when 5 then 1.1 when 6 then 0.7 else 1 end)::int;
+    select array_agg(mi.id order by mi.id),
+           array_agg(case d.name when 'Attiéké poisson braisé' then 1.0 when 'Garba' then 0.9 when 'Alloco poulet braisé' then 0.85
+                       when 'Riz sauce arachide poulet' then 0.8 when 'Riz sauce graine' then 0.7 when 'Foutou banane sauce graine' then 0.6
+                       when 'Spaghetti sautés' then 0.55 when 'Placali sauce kplala' then 0.5 when 'Salade composée' then 0.4
+                       when 'Pain beurre & café au lait' then 1.0 when 'Omelette pain' then 0.8 when 'Bouillie de mil' then 0.5
+                       when 'Crêpes sucrées' then 1.0 when 'Croque-monsieur' then 0.8 when 'Brownie' then 0.7 else 0.6 end
+                     order by mi.id),
+           array_agg(coalesce(mi.planned_qty, 999) order by mi.id)
+      into v_items, v_weights, v_left
+      from public.menu_items mi join public.dishes d on d.id = mi.dish_id
+     where mi.service_date = v_item.service_date and mi.service = v_item.service;
+    for i in 1..v_att loop
+      -- tirage pondéré parmi les plats encore disponibles
+      v_acc := 0; v_r := random() * (select sum(w) from unnest(v_weights, v_left) x(w, l) where l > 0); v_pick := null;
+      for k in 1..array_length(v_items, 1) loop
+        continue when v_left[k] <= 0;
+        v_acc := v_acc + v_weights[k];
+        if v_r <= v_acc then v_pick := k; exit; end if;
+      end loop;
+      exit when v_pick is null;
+      v_left[v_pick] := v_left[v_pick] - 1;
+      v_t := v_win.starts_at - (interval '30 minutes' + random() * interval '40 hours');
+      insert into seed_sales values (v_items[v_pick], v_clients[2 + floor(random() * 29)::int], v_t, 'used',
+        case when v_item.service in ('lunch', 'dinner') then
+          case when random() < 0.15 then array[(select id from public.extras where kind = 'starter' order by random() limit 1)] else '{}'::uuid[] end
+          || case when random() < 0.25 then array[(select id from public.extras where kind = 'dessert' and is_active order by random() limit 1)] else '{}'::uuid[] end
+        else '{}'::uuid[] end,
+        v_item.service, v_item.service_date,
+        v_win.starts_at + random() * (v_win.ends_at - v_win.starts_at - interval '15 minutes'));
+    end loop;
+    -- tickets achetés mais jamais utilisés (expirés 48 h après l'achat)
+    for i in 1..round(v_att * 0.06)::int loop
+      v_t := v_win.starts_at - (interval '1 hour' + random() * interval '20 hours');
+      continue when v_t + interval '48 hours' > now();
+      insert into seed_sales values (null, v_clients[2 + floor(random() * 29)::int], v_t, 'expired', '{}', v_item.service, null, null);
     end loop;
   end loop;
 
-  -- Démo : la cliente principale a des tickets dans chaque statut
-  insert into seed_sales
-  select mi.id, v_demo, w.starts_at - interval '1 day',
-         case when w.ends_at < now() then (case when row_number() over (order by mi.service_date, mi.service) % 4 = 0
-                                                then 'expired' else 'used' end)::public.ticket_status
-              else 'valid' end,
-         array[(select id from public.extras where name = 'Bissap')]
-    from public.menu_items mi
-    cross join lateral public.service_window(mi.service_date, mi.service) w
-   where mi.dish_id = (select id from public.dishes where name = 'Attiéké poisson braisé')
-     and mi.service_date between v_today - 12 and v_today + 3
-     and exists (select 1 from public.menus m where m.id = mi.menu_id and m.status = 'published');
+  -- Tickets en circulation (achetés ces dernières 30 h, encore valables)
+  foreach v_svc in array enum_range(null::public.service_kind) loop
+    for i in 1..(case v_svc when 'lunch' then 70 when 'dinner' then 40 when 'breakfast' then 25 else 20 end) loop
+      insert into seed_sales values (null, v_clients[2 + floor(random() * 29)::int],
+        now() - (interval '10 minutes' + random() * interval '30 hours'), 'valid',
+        case when v_svc in ('lunch', 'dinner') and random() < 0.25
+             then array[(select id from public.extras where kind = 'dessert' and is_active order by random() limit 1)] else '{}'::uuid[] end,
+        v_svc, null, null);
+    end loop;
+  end loop;
 
-  -- Traitement chronologique : recharge quand le solde manque, puis achat
-  for s in select ss.*, mi.price, mi.service_date, mi.service, mi.dish_id, d.name as dish_name
-             from seed_sales ss join public.menu_items mi on mi.id = ss.menu_item_id join public.dishes d on d.id = mi.dish_id
+  -- Démo : la cliente principale (attiéké au déjeuner presque tous les jours, un ticket expiré, 3 tickets en poche)
+  insert into seed_sales
+  select mi.id, v_demo, w.starts_at - interval '20 hours', 'used', array[(select id from public.extras where name = 'Mangue (2 tranches)')],
+         'lunch', mi.service_date, w.starts_at + interval '45 minutes'
+    from public.menu_items mi join public.menus m on m.id = mi.menu_id
+    cross join lateral public.service_window(mi.service_date, mi.service) w
+   where m.status = 'published' and mi.service = 'lunch' and w.ends_at < now()
+     and mi.dish_id = (select id from public.dishes where name = 'Attiéké poisson braisé')
+     and mi.service_date between v_today - 12 and v_today and extract(isodow from mi.service_date) <> 3;
+  insert into seed_sales values
+    (null, v_demo, now() - interval '5 days', 'expired', '{}', 'dinner', null, null),
+    (null, v_demo, now() - interval '3 hours', 'valid', array[(select id from public.extras where name = 'Mangue (2 tranches)')], 'lunch', null, null),
+    (null, v_demo, now() - interval '3 hours', 'valid', '{}', 'lunch', null, null),
+    (null, v_demo, now() - interval '2 hours', 'valid', '{}', 'breakfast', null, null);
+
+  -- Traitement chronologique : recharge quand le solde manque, puis achat (prix du type de ticket + suppléments)
+  for s in select ss.*, mi.dish_id, d.name as dish_name
+             from seed_sales ss left join public.menu_items mi on mi.id = ss.menu_item_id left join public.dishes d on d.id = mi.dish_id
             order by ss.created_at
   loop
-    select coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'name', e.name, 'kind', e.kind, 'price', e.price, 'free', false)), '[]'),
-           s.price + coalesce(sum(e.price), 0)
+    select coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'name', e.name, 'kind', e.kind, 'price', e.price)), '[]'),
+           (v_prices -> s.service::text ->> 'price')::int + coalesce(sum(e.price), 0)
       into v_extras, v_total
       from public.extras e where e.id = any (s.extra_ids);
     select balance into v_bal from public.wallets where user_id = s.user_id for update;
@@ -258,16 +326,13 @@ begin
       update public.transactions set created_at = s.created_at - interval '3 minutes' where id = v_tx.id;
     end if;
 
-    select * into v_win from public.service_window(s.service_date, s.service);
-    insert into public.tickets (user_id, buyer_id, menu_item_id, dish_id, extras, total, status, service_date, service,
+    insert into public.tickets (user_id, buyer_id, service, menu_item_id, dish_id, extras, total, status, service_date,
                                 valid_from, valid_until, used_at, scanned_by, created_at)
-    values (s.user_id, s.user_id, s.menu_item_id, s.dish_id, v_extras, v_total, s.status, s.service_date, s.service,
-            v_win.starts_at, v_win.ends_at,
-            case when s.status = 'used' then v_win.starts_at + random() * (v_win.ends_at - v_win.starts_at - interval '20 minutes') end,
-            case when s.status = 'used' then v_agent end,
-            s.created_at)
+    values (s.user_id, s.user_id, s.service, s.menu_item_id, s.dish_id, v_extras, v_total, s.status, s.service_date,
+            s.created_at, s.created_at + interval '48 hours', s.used_at, case when s.status = 'used' then v_agent end, s.created_at)
     returning id into v_ticket;
-    v_tx := public._wallet_move(s.user_id, -v_total, 'purchase', p_ticket => v_ticket, p_note => s.dish_name);
+    v_tx := public._wallet_move(s.user_id, -v_total, 'purchase', p_ticket => v_ticket,
+              p_note => '1 × ticket ' || (v_prices -> s.service::text ->> 'label'));
     update public.transactions set created_at = s.created_at where id = v_tx.id;
   end loop;
 
@@ -284,7 +349,7 @@ begin
 
   -- Compteurs dérivés des tickets
   update public.menu_items mi set
-    sold_qty   = (select count(*) from public.tickets t where t.menu_item_id = mi.id and t.status <> 'cancelled'),
+    sold_qty   = (select count(*) from public.tickets t where t.menu_item_id = mi.id and t.status = 'used'),
     served_qty = (select count(*) from public.tickets t where t.menu_item_id = mi.id and t.status = 'used');
   update public.menu_items mi set prepared_qty = served_qty + floor(random() * 6)::int
    where (select ends_at from public.service_window(mi.service_date, mi.service)) < now();

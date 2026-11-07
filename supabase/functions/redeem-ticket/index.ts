@@ -1,4 +1,4 @@
-// POST /functions/v1/redeem-ticket  { token: string, service_date: "YYYY-MM-DD", service: "lunch" | "dinner" }
+// POST /functions/v1/redeem-ticket  { token, service_date: "YYYY-MM-DD", service: "breakfast" | "lunch" | "snack" | "dinner" }
 // Appelée par l'écran /scan (JWT d'un agent). Vérifie la signature HMAC AVANT toute requête en base,
 // puis appelle la RPC redeem_ticket (exécutable seulement par service_role) qui fait l'UPDATE atomique.
 import { adminClient, corsHeaders, fail, json, qrSecret, requestUser } from "../_shared/http.ts";
@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => null);
   const { token, service_date, service } = body ?? {};
-  if (typeof token !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(service_date ?? "") || !["lunch", "dinner"].includes(service)) {
+  if (typeof token !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(service_date ?? "") || !["breakfast", "lunch", "snack", "dinner"].includes(service)) {
     return fail("BAD_REQUEST", "Requête invalide.");
   }
 

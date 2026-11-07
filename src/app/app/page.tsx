@@ -18,7 +18,7 @@ export default function HomePage() {
     fetchMyTickets(30).then((l) => { setTickets(l); syncTokens(); });
   }, []);
 
-  const valid = tickets?.filter((t) => displayStatus(t) === "valid") ?? [];
+  const valid = (tickets?.filter((t) => displayStatus(t) === "valid") ?? []).sort((a, b) => a.valid_until.localeCompare(b.valid_until));
   const others = tickets?.filter((t) => displayStatus(t) !== "valid").slice(0, 4) ?? [];
   const rewardReady = (profile?.points ?? 0) >= 10;
 
@@ -51,7 +51,7 @@ export default function HomePage() {
           {[
             { href: "/app/recharger", label: "Recharger", icon: Plus },
             { href: "/app/transferer", label: "Transférer", icon: Send },
-            { href: "/app/menu", label: "Acheter", icon: UtensilsCrossed },
+            { href: "/app/acheter", label: "Acheter", icon: UtensilsCrossed },
           ].map(({ href, label, icon: I }) => (
             <Link key={href} href={href} className="flex flex-col items-center gap-1.5 rounded-2xl bg-ink py-3 text-white transition active:scale-95">
               <I className="size-5 text-lime" strokeWidth={2.4} />
@@ -103,10 +103,10 @@ function EmptyTickets({ compact }: { compact?: boolean }) {
     <div className={`flex items-center gap-3 rounded-[20px] border-2 border-dashed border-line p-4 ${compact ? "" : "py-6"}`}>
       <span className="grid size-12 place-items-center rounded-2xl bg-card"><UtensilsCrossed className="size-5 text-muted" /></span>
       <div className="flex-1">
-        <p className="font-bold">Aucun repas réservé</p>
-        <p className="text-sm text-muted">Choisissez votre plat, évitez la file.</p>
+        <p className="font-bold">Aucun ticket valide</p>
+        <p className="text-sm text-muted">Achetez vos tickets, évitez la file.</p>
       </div>
-      <Link href="/app/menu" className="rounded-full bg-ink px-4 py-2 text-sm font-bold text-white">Menu</Link>
+      <Link href="/app/acheter" className="rounded-full bg-ink px-4 py-2 text-sm font-bold text-white">Acheter</Link>
     </div>
   );
 }

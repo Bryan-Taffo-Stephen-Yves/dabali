@@ -9,7 +9,10 @@ export type Profile = {
   notify_free_seats: boolean;
 };
 
-export type Extra = { id: string; name: string; price: number; kind: "dessert" | "drink" | "other"; free?: boolean };
+export type ServiceKind = "breakfast" | "lunch" | "snack" | "dinner";
+export const SERVICES: ServiceKind[] = ["breakfast", "lunch", "snack", "dinner"];
+
+export type Extra = { id: string; name: string; price: number; kind: "starter" | "dessert" | "drink" | "other"; free?: boolean };
 
 export type Dish = {
   id: string;
@@ -29,7 +32,7 @@ export type Dish = {
 export type MenuItem = {
   id: string;
   service_date: string;
-  service: "lunch" | "dinner";
+  service: ServiceKind;
   price: number;
   planned_qty: number | null;
   sold_qty: number;
@@ -44,26 +47,27 @@ export type Ticket = {
   user_id: string;
   buyer_id: string;
   status: TicketStatus;
-  service_date: string;
-  service: "lunch" | "dinner";
+  service_date: string | null;
+  service: ServiceKind;
+  is_reward: boolean;
   valid_from: string;
   valid_until: string;
   used_at: string | null;
   total: number;
   extras: Extra[];
   created_at: string;
-  dish: Pick<Dish, "id" | "name" | "photo_url" | "composition">;
+  dish: Pick<Dish, "id" | "name" | "photo_url" | "composition"> | null;
 };
 
 export const TICKET_COLUMNS =
-  "id, user_id, buyer_id, status, service_date, service, valid_from, valid_until, used_at, total, extras, created_at, dish:dishes(id, name, photo_url, composition)";
+  "id, user_id, buyer_id, status, service_date, service, is_reward, valid_from, valid_until, used_at, total, extras, created_at, dish:dishes(id, name, photo_url, composition)";
 
 export const PROFILE_COLUMNS = "id, full_name, phone, short_code, role, points, is_blocked, notify_free_seats";
 
 export type Occupancy =
   | { status: "unknown" }
-  | { status: "closed"; room: string; next: { service: "lunch" | "dinner"; starts_at: string } | null }
+  | { status: "closed"; room: string; next: { service: ServiceKind; starts_at: string } | null }
   | {
-      status: "open"; room: string; service: "lunch" | "dinner"; rate: number; level: "low" | "mid" | "high";
+      status: "open"; room: string; service: ServiceKind; rate: number; level: "low" | "mid" | "high";
       occupied_tables: number; total_tables: number; wait_min: number; source: "vision" | "scans"; updated_at: string;
     };

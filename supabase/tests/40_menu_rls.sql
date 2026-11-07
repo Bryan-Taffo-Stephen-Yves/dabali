@@ -4,7 +4,7 @@ select tests.setup();
 
 -- ── Lecture publique ──
 select tests.as_anon();
-select tests.eq((select count(*) from public.menu_items)::int, 4, 'anonyme : voit le menu publié');
+select tests.eq((select count(*) from public.menu_items)::int, 5, 'anonyme : voit le menu publié');
 select tests.ok((select count(*) from public.dishes) = 3, 'anonyme : voit les plats');
 select tests.throws($$select * from public.wallets$$, 'anonyme : aucun accès aux portefeuilles');
 select tests.throws($$select id from public.profiles$$, 'anonyme : aucun accès aux profils');
@@ -27,9 +27,6 @@ select tests.eq((select count(*) from public.menus where id = :'m_next')::int, 0
 select tests.throws($$insert into public.menus (week_start) values ('2030-01-07')$$, 'client : création de menu interdite');
 select tests.throws($$insert into public.dishes (name, base_price) values ('Burger', 100)$$, 'client : création de plat interdite');
 select tests.code(public.submit_menu(:'m_next'), 'FORBIDDEN', 'client : soumission interdite');
-select public.simulate_recharge(5000);
-select tests.code(public.purchase_ticket((select id from public.menu_items where menu_id = :'m_next' limit 1)),
-                  'ITEM_NOT_FOUND', 'achat sur menu non publié : introuvable pour le client');
 
 -- ── Soumission / publication ──
 select tests.login('chef');

@@ -47,7 +47,11 @@ export function relativeDay(iso: string): string {
   return dayLong(iso);
 }
 
-export const SERVICE_LABEL: Record<string, string> = { lunch: "Déjeuner", dinner: "Dîner" };
+export const SERVICE_LABEL: Record<string, string> = { breakfast: "Petit-déjeuner", lunch: "Déjeuner", snack: "Snack", dinner: "Dîner" };
+
+/** « sam. 9 nov. à 14h05 » */
+export const shortDateTime = (ts: string) =>
+  fmt({ weekday: "short", day: "numeric", month: "short" }).format(new Date(ts)) + " à " + time(ts);
 
 export function cap(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);

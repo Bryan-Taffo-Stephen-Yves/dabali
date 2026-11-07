@@ -1,6 +1,6 @@
 "use client";
 import { supabase } from "@/lib/supabase/client";
-import type { MenuItem } from "@/lib/types";
+import type { MenuItem, ServiceKind } from "@/lib/types";
 
 export const MENU_ITEM_COLUMNS =
   "id, service_date, service, price, planned_qty, sold_qty, is_sold_out, is_full, dish:dishes(id, name, category_id, description, composition, kcal, weight_g, allergens, photo_url, photo_credit, photo_source, base_price)";
@@ -47,19 +47,30 @@ export const TAG_STYLE: Record<Tag["tone"], string> = {
 };
 
 // ───────── Horaires des services (Africa/Abidjan = UTC+0 toute l'année) ─────────
-export type Services = Record<"lunch" | "dinner", { label: string; start: string; end: string }>;
-const DEFAULT_SERVICES: Services = {
-  lunch: { label: "Déjeuner", start: "11:30", end: "14:30" },
-  dinner: { label: "Dîner", start: "18:30", end: "21:00" },
+export type ServiceConfig = { label: string; start: string; end: string; price: number; extras: boolean };
+export type Services = Record<ServiceKind, ServiceConfig>;
+export const DEFAULT_SERVICES: Services = {
+  breakfast: { label: "Petit-déjeuner", start: "06:30", end: "09:30", price: 500, extras: false },
+  lunch: { label: "Déjeuner", start: "11:30", end: "14:30", price: 2500, extras: true },
+  snack: { label: "Snack", start: "15:30", end: "17:00", price: 700, extras: false },
+  dinner: { label: "Dîner", start: "17:30", end: "20:00", price: 2500, extras: true },
 };
 
 export async function fetchServices(): Promise<Services> {
   const { data } = await supabase().from("settings").select("value").eq("key", "services").maybeSingle();
-  return (data?.value as Services) ?? DEFAULT_SERVICES;
+  return { ...DEFAULT_SERVICES, ...((data?.value as Partial<Services>) ?? {}) };
 }
 
 /** Le service est-il terminé ? (l'achat est alors refusé par le serveur) */
-export function serviceEnded(date: string, service: "lunch" | "dinner", services: Services | null, now = Date.now()) {
+export function serviceEnded(date: string, service: ServiceKind, services: Services | null, now = Date.now()) {
   const end = (services ?? DEFAULT_SERVICES)[service].end;
   return new Date(`${date}T${end}:00Z`).getTime() <= now;
+}
+
+/** Service en cours, sinon le prochain de la journée (sinon le petit-déjeuner du lendemain) */
+export function currentService(services: Services | null, now = new Date()): ServiceKind {
+  const cfg = services ?? DEFAULT_SERVICES;
+  const hm = now.toISOString().slice(11, 16); // Abidjan = UTC
+  const order: ServiceKind[] = ["breakfast", "lunch", "snack", "dinner"];
+  return order.find((s) => hm < cfg[s].end) ?? "breakfast";
 }

@@ -12,11 +12,11 @@ import { dayLong, fcfa, todayISO, SERVICE_LABEL, time } from "@/lib/format";
 import type { Occupancy } from "@/lib/types";
 
 type Overview = {
-  revenue: number; recharges: number; recharges_cash: number; sold: number; served: number; expired: number;
+  revenue: number; recharges: number; recharges_cash: number; sold: number; served: number; expired: number; outstanding: number;
   avg_basket: number; sold_out: number; occupancy: Occupancy;
   by_hour: { h: number; sales: number; scans: number }[];
   top_dishes: { name: string; photo_url: string | null; sold: number }[];
-  services: { service: "lunch" | "dinner"; sold: number; served: number; planned: number }[];
+  services: { service: string; label: string; served: number; outstanding: number; planned: number | null }[];
   alerts: { kind: string; level: "warn" | "err" | "info"; text: string }[];
 };
 
@@ -61,7 +61,7 @@ export default function OverviewPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi tone="dark" icon={Banknote} label="Chiffre d'affaires" value={o ? fcfa(o.revenue) : "…"} hint={o ? `Panier moyen ${fcfa(o.avg_basket)}` : undefined} />
         <Kpi tone="lime" icon={ShoppingBasket} label="Recharges encaissées" value={o ? fcfa(o.recharges) : "…"} hint={o ? `dont ${fcfa(o.recharges_cash)} en espèces` : undefined} />
-        <Kpi icon={Ticket} label="Tickets du jour" value={o ? `${o.served} / ${o.sold}` : "…"} hint={o ? `servis / vendus · ${o.expired} expirés` : undefined} />
+        <Kpi icon={Ticket} label="Repas servis aujourd'hui" value={o ? String(o.served) : "…"} hint={o ? `${o.sold} tickets vendus · ${o.outstanding} en circulation` : undefined} />
         <Kpi icon={Users} label="Occupation" value={occ?.status === "open" ? `${Math.round(occ.rate)} %` : "Fermé"}
           hint={occ?.status === "open" ? `${occ.occupied_tables}/${occ.total_tables} tables · ~${occ.wait_min} min` : occ?.status === "closed" && occ.next ? `${SERVICE_LABEL[occ.next.service]} à ${time(occ.next.starts_at)}` : undefined} />
       </div>
@@ -98,17 +98,17 @@ export default function OverviewPage() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <Card title="Services du jour" subtitle="Vendus et servis par rapport au prévu">
+        <Card title="Services du jour" subtitle="Repas servis par rapport aux portions prévues">
           <div className="space-y-5">
             {o?.services.length === 0 && <Empty>Aucun service aujourd&apos;hui</Empty>}
             {o?.services.map((s) => (
               <div key={s.service}>
                 <div className="mb-1.5 flex items-baseline justify-between">
-                  <p className="font-bold">{SERVICE_LABEL[s.service]}</p>
-                  <p className="text-sm text-muted"><b className="text-ink">{s.served}</b> servis · {s.sold} vendus · {s.planned ?? "∞"} prévus</p>
+                  <p className="font-bold">{s.label}</p>
+                  <p className="text-sm text-muted"><b className="text-ink">{s.served}</b> servis · {s.planned ?? "∞"} prévus</p>
                 </div>
-                <Meter value={s.sold} max={s.planned || s.sold} />
-                <div className="mt-1.5"><Meter value={s.served} max={s.planned || s.sold} tone="ok" /></div>
+                <Meter value={s.served} max={s.planned || s.served || 1} tone="ok" />
+                <p className="mt-1 text-xs text-muted">{s.outstanding} tickets {s.label.toLowerCase()} en circulation</p>
               </div>
             ))}
           </div>

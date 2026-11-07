@@ -4,10 +4,13 @@ import clsx from "clsx";
 import { ShoppingCart, Download, Info } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { Card, PageTitle, Badge, Empty, Kpi, downloadCsv } from "@/components/admin/ui";
-import { addDays, dayLong, dayShort, dayNum, fcfa, todayISO, SERVICE_LABEL } from "@/lib/format";
+import { ServiceBadge } from "@/components/app/service-icon";
+import { addDays, dayLong, dayShort, dayNum, fcfa, todayISO } from "@/lib/format";
+import type { ServiceKind } from "@/lib/types";
 
 type F = {
-  items: { id: string; service: "lunch" | "dinner"; dish: string; sold: number; planned: number | null; expected: number; remaining: number; recommended: number; basis: string }[];
+  services: { service: ServiceKind; label: string; history: number | null; outstanding: number; expected: number; basis: string }[];
+  items: { id: string; service: ServiceKind; dish: string; planned: number | null; share: number; expected: number; recommended: number; basis: string }[];
   ingredients: { id: string; name: string; unit: string; stock: number; need: number; to_buy: number; cost: number }[];
 };
 
@@ -24,7 +27,7 @@ export default function ForecastPage() {
   }, [date]);
 
   const total = f?.items.reduce((s, i) => s + i.recommended, 0) ?? 0;
-  const sold = f?.items.reduce((s, i) => s + i.sold, 0) ?? 0;
+  const covers = f?.services.reduce((s, x) => s + x.expected, 0) ?? 0;
   const shopping = f?.ingredients.filter((i) => i.to_buy > 0) ?? [];
   const budget = shopping.reduce((s, i) => s + i.cost, 0);
 
@@ -42,37 +45,53 @@ export default function ForecastPage() {
       </PageTitle>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi tone="dark" label="Portions à préparer" value={f ? String(total) : "…"} hint={dayLong(date)} />
-        <Kpi label="Déjà vendues" value={f ? String(sold) : "…"} hint="précommandes payées" />
-        <Kpi label="Ventes estimées en plus" value={f ? String(Math.max(total - sold, 0)) : "…"} hint="moyenne des 4 mêmes jours + 5 %" />
+        <Kpi tone="dark" label="Repas attendus" value={f ? String(covers) : "…"} hint={dayLong(date)} />
+        <Kpi label="Portions à préparer" value={f ? String(total) : "…"} hint="avec 5 % de marge" />
+        <Kpi label="Tickets en circulation" value={f ? String(f.services.reduce((s, x) => s + x.outstanding, 0)) : "…"} hint="valables ce jour-là" />
         <Kpi tone="lime" label="Budget courses" value={f ? fcfa(budget) : "…"} hint={`${shopping.length} ingrédients à acheter`} />
       </div>
 
+      {f && f.services.length > 0 && (
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {f.services.map((s) => (
+            <div key={s.service} className="flex items-center gap-3 rounded-[22px] border border-line bg-card p-4">
+              <ServiceBadge service={s.service} size="size-11" />
+              <div>
+                <p className="text-sm font-bold">{s.label}</p>
+                <p className="text-2xl font-extrabold leading-tight">{s.expected}</p>
+                <p className="text-xs text-muted">{s.history != null ? `moy. ${s.history} · ` : ""}{s.outstanding} tickets</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <Card title="Portions recommandées par plat" pad={false}
-          action={f && <button onClick={() => downloadCsv(`previsions-${date}.csv`, [["Service", "Plat", "Vendus", "Estimés en plus", "Recommandé", "Prévu"], ...f.items.map((i) => [SERVICE_LABEL[i.service], i.dish, i.sold, i.remaining, i.recommended, i.planned])])}
+          action={f && <button onClick={() => downloadCsv(`previsions-${date}.csv`, [["Service", "Plat", "Part des choix (%)", "Attendus", "À préparer", "Prévu au menu"], ...f.items.map((i) => [f.services.find((s) => s.service === i.service)?.label ?? i.service, i.dish, i.share, i.expected, i.recommended, i.planned])])}
             className="mr-5 flex items-center gap-1.5 text-sm font-bold text-muted hover:text-ink"><Download className="size-4" />CSV</button>}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-y border-line bg-canvas text-left text-xs font-bold uppercase tracking-wider text-muted">
-                <th className="px-5 py-2.5">Plat</th><th className="px-2 text-right">Vendus</th><th className="px-2 text-right">+ Estimés</th>
+                <th className="px-5 py-2.5">Plat</th><th className="px-2 text-right">Part</th><th className="px-2 text-right">Attendus</th>
                 <th className="px-2 text-right">À préparer</th><th className="px-5 text-right">Prévu au menu</th></tr></thead>
               <tbody>
                 {f?.items.length === 0 && <tr><td colSpan={5} className="p-5"><Empty>Pas de menu ce jour-là</Empty></td></tr>}
-                {(["lunch", "dinner"] as const).map((s) => {
-                  const rows = f?.items.filter((i) => i.service === s) ?? [];
+                {f?.services.map((s) => {
+                  const rows = f.items.filter((i) => i.service === s.service);
                   if (!rows.length) return null;
                   return [
-                    <tr key={s}><td colSpan={5} className="px-5 pb-1 pt-4 text-xs font-extrabold uppercase tracking-wider text-muted">{SERVICE_LABEL[s]}</td></tr>,
+                    <tr key={s.service}><td colSpan={5} className="px-5 pb-1 pt-4 text-xs font-extrabold uppercase tracking-wider text-muted">{s.label} · {s.expected} repas attendus</td></tr>,
                     ...rows.map((i) => {
                       const over = i.planned != null && i.planned > i.recommended * 1.25;
+                      const under = i.planned != null && i.planned < i.expected;
                       return (
                         <tr key={i.id} className="border-b border-line last:border-0">
-                          <td className="px-5 py-3 font-bold">{i.dish}{i.basis !== "dish" && <span className="ml-2 text-xs font-medium text-muted">({i.basis === "category" ? "moy. catégorie" : "sans historique"})</span>}</td>
-                          <td className="px-2 text-right">{i.sold}</td>
-                          <td className="px-2 text-right text-muted">+{i.remaining}</td>
+                          <td className="px-5 py-3 font-bold">{i.dish}{i.basis !== "dish" && <span className="ml-2 text-xs font-medium text-muted">(nouveau)</span>}</td>
+                          <td className="px-2 text-right text-muted">{i.share} %</td>
+                          <td className="px-2 text-right">{i.expected}</td>
                           <td className="px-2 text-right"><span className="rounded-lg bg-lime px-2 py-1 font-extrabold">{i.recommended}</span></td>
-                          <td className="px-5 text-right">{i.planned ?? "∞"} {over && <Badge tone="warn">trop</Badge>}</td>
+                          <td className="px-5 text-right">{i.planned ?? "∞"} {over && <Badge tone="warn">trop</Badge>}{under && <Badge tone="err">pas assez</Badge>}</td>
                         </tr>
                       );
                     }),
@@ -82,7 +101,7 @@ export default function ForecastPage() {
             </table>
           </div>
           <p className="flex gap-2 border-t border-line px-5 py-3 text-xs text-muted"><Info className="size-4 shrink-0" />
-            Méthode v1 : ventes finales moyennes du même plat les 4 mêmes jours de semaine précédents (repli : moyenne de la catégorie), au moins égales aux ventes déjà faites, + 5 % de marge.</p>
+            Repas attendus = moyenne des 4 mêmes jours de semaine (au moins les tickets en circulation). Répartition entre plats = choix faits au comptoir quand ces plats étaient servis. + 5 % de marge.</p>
         </Card>
 
         <Card title="Liste de courses" subtitle="Besoins des recettes vs stock (seuil d'alerte conservé)"
