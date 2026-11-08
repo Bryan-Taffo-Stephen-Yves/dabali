@@ -64,8 +64,8 @@ export default function ScansAdmin() {
       <PageTitle title="Scans au comptoir" subtitle={`${dayLong(day)} · mis à jour en direct`}>
         <input type="date" value={day} max={todayISO()} onChange={(e) => e.target.value && setDay(e.target.value)} className={input} />
         <button onClick={() => downloadCsv(`scans-${day}.csv`, [
-          ["Heure", "Client", "Identifiant", "Service", "Plat servi", "Supplément", "Montant (FCFA)", "Agent", "Offert par", "Fidélité"],
-          ...list.map((r) => [time(r.used_at), r.client?.full_name ?? "", r.client?.short_code ?? "", SERVICE_LABEL[r.service], r.dish?.name ?? "",
+          ["Date", "Heure", "Client", "Identifiant", "Service", "Plat servi", "Supplément", "Montant (FCFA)", "Agent", "Offert par", "Fidélité"],
+          ...list.map((r) => [day, time(r.used_at), r.client?.full_name ?? "", r.client?.short_code ?? "", SERVICE_LABEL[r.service], r.dish?.name ?? "",
             (r.extras ?? []).map((e) => e.name).join(" + "), r.total, r.agent?.full_name ?? "", r.gift_from ?? "", r.is_reward ? "oui" : ""]),
         ])} className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-card px-4 text-sm font-bold"><Download className="size-4" />CSV</button>
       </PageTitle>
@@ -96,14 +96,14 @@ export default function ScansAdmin() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b border-line bg-canvas text-left text-xs font-bold uppercase tracking-wider text-muted">
-                <th className="px-5 py-2.5">Heure</th><th className="px-2">Client</th><th className="px-2">Repas</th><th className="px-2">Supplément</th>
+                <th className="px-5 py-2.5">Date et heure</th><th className="px-2">Client</th><th className="px-2">Repas</th><th className="px-2">Supplément</th>
                 <th className="px-2 text-right">Montant</th><th className="px-5">Agent</th></tr></thead>
               <tbody>
                 {rows === null && <tr><td colSpan={6} className="p-5"><div className="h-32 animate-pulse rounded-xl bg-canvas" /></td></tr>}
                 {rows && list.length === 0 && <tr><td colSpan={6} className="p-5"><Empty>Aucun ticket scanné</Empty></td></tr>}
                 {list.map((r) => (
                   <tr key={r.id} className="border-b border-line last:border-0">
-                    <td className="whitespace-nowrap px-5 py-2.5 font-extrabold">{time(r.used_at)}</td>
+                    <td className="whitespace-nowrap px-5 py-2.5"><span className="font-extrabold">{time(r.used_at)}</span><span className="block text-xs text-muted">{new Date(r.used_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Africa/Abidjan" })}</span></td>
                     <td className="px-2">
                       <p className="font-bold">{r.client?.full_name ?? "—"}</p>
                       <p className="text-xs text-muted">{r.client?.short_code}{r.gift_from ? ` · 🎁 ${r.gift_from}` : ""}{r.is_reward ? " · ⭐ fidélité" : ""}</p>

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Check, X, LogOut, CameraOff, Keyboard, ShoppingCart, History } from "lucide-react";
+import { Check, X, LogOut, CameraOff, Keyboard, ShoppingCart, History, Volume2, VolumeX, Volume1 } from "lucide-react";
 import Link from "next/link";
 import { edge, rpc, supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/logo";
@@ -11,30 +11,17 @@ import { DishImage } from "@/components/app/dish-image";
 import { currentService, fetchServices, type Services } from "@/lib/menu";
 import { todayISO, SERVICE_LABEL } from "@/lib/format";
 import { SERVICES, type Extra, type ServiceKind } from "@/lib/types";
+import { audioPref, say, setAudioPref, soundError, soundOk, soundServed, type AudioPref } from "@/lib/scan-sounds";
 
 type Dish = { menu_item_id: string; name: string; photo_url: string | null; available: boolean; left: number | null };
 type Scan = { ticket_id: string; client: string; ticket: string; extras: Extra[]; dishes: Dish[]; batch_size?: number; remaining?: number; gift_from?: string | null; is_reward?: boolean };
 type Fail = { code: string; message: string };
 type Counters = { served: number; outstanding: number };
 
-// Sons générés (aucun fichier à charger)
-function beep(ok: boolean) {
-  try {
-    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new Ctx();
-    (ok ? [880, 1320] : [220, 180]).forEach((f, i) => {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = ok ? "sine" : "square";
-      o.frequency.value = f;
-      g.gain.setValueAtTime(0.25, ctx.currentTime + i * 0.13);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.13 + (ok ? 0.12 : 0.22));
-      o.connect(g).connect(ctx.destination);
-      o.start(ctx.currentTime + i * 0.13);
-      o.stop(ctx.currentTime + i * 0.13 + 0.25);
-    });
-    navigator.vibrate?.(ok ? 80 : [120, 60, 120]);
-  } catch {}
-}
+const SPOKEN: Record<string, string> = {
+  ALREADY_USED: "Ticket déjà utilisé", EXPIRED: "Ticket expiré", INVALID_QR: "QR invalide", CANCELLED: "Ticket annulé",
+  WRONG_SERVICE: "Mauvais service", SOLD_OUT: "Plat épuisé",
+};
 
 export default function ScanPage() {
   const router = useRouter();
@@ -67,6 +54,20 @@ export default function ScanPage() {
   const [camErr, setCamErr] = useState<string | null>(null);
   const [agent, setAgent] = useState("");
   const [manual, setManual] = useState(false);
+  const [audioMode, setAudioMode] = useState<AudioPref>("on");
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setAudioMode(audioPref());
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const cycleAudio = () => {
+    const next: AudioPref = audioMode === "on" ? "sound" : audioMode === "sound" ? "off" : "on";
+    setAudioPref(next); setAudioMode(next);
+    if (next !== "off") soundServed();
+    if (next === "on") say("Voix activée");
+  };
   const busy = useRef(false);
   const lastToken = useRef<{ t: string; at: number } | null>(null);
   const date = todayISO();
@@ -95,15 +96,24 @@ export default function ScanPage() {
     busy.current = true;
     lastToken.current = { t: token, at: now };
     const r = await edge<Scan>("redeem-ticket", { token, service_date: date, service });
-    beep(r.ok);
-    if (r.ok) { setScan(r as unknown as Scan); loadCounters(); }
-    else { setFail(r as Fail); setTimeout(reset, 2800); }
+    if (r.ok) {
+      const sc = r as unknown as Scan;
+      soundOk();
+      const extras = sc.extras?.length ? `Avec ${sc.extras.map((e) => e.name).join(" et ")}.` : "Sans supplément.";
+      say(`${sc.client.split(" ")[0]}. ${sc.ticket} valide. ${extras}`);
+      setScan(sc); loadCounters();
+    } else {
+      soundError();
+      say(SPOKEN[(r as Fail).code] ?? "Refusé");
+      setFail(r as Fail); setTimeout(reset, 2800);
+    }
   }, [date, service, loadCounters, reset]);
 
   async function serve(d: Dish) {
     if (!scan) return;
     const r = await rpc<{ dish: string }>("serve_dish", { p_ticket_id: scan.ticket_id, p_menu_item_id: d.menu_item_id });
-    if (!r.ok) { setFail(r as Fail); beep(false); setScan(null); setTimeout(reset, 2500); return; }
+    if (!r.ok) { setFail(r as Fail); soundError(); say(SPOKEN[(r as Fail).code] ?? "Refusé"); setScan(null); setTimeout(reset, 2500); return; }
+    soundServed();
     setServed(r.dish);
     setScan(null);
     loadCounters();
@@ -141,9 +151,14 @@ export default function ScanPage() {
       <header className="flex items-center justify-between gap-2 px-4 pb-2 pt-[max(0.8rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-2"><Logo mark /><div>
           <p className="text-sm font-extrabold leading-tight">Scanner</p>
-          <p className="text-[11px] text-white/60">{agent}</p>
+          <p className="text-[11px] text-white/60">{agent}{now ? ` · ${now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Abidjan" })} · ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Abidjan" }).replace(":", "h")}` : ""}</p>
         </div></div>
         <span className="flex items-center gap-2">
+          <button onClick={cycleAudio} aria-label={audioMode === "on" ? "Sons et voix activés" : audioMode === "sound" ? "Sons seuls" : "Muet"}
+            title={audioMode === "on" ? "Sons + voix" : audioMode === "sound" ? "Sons seuls" : "Muet"}
+            className={clsx("grid size-10 place-items-center rounded-full", audioMode === "off" ? "bg-white/10 text-white/50" : "bg-white/10")}>
+            {audioMode === "on" ? <Volume2 className="size-4" /> : audioMode === "sound" ? <Volume1 className="size-4" /> : <VolumeX className="size-4" />}
+          </button>
           <Link href="/scan/historique" aria-label="Historique des scans" className="grid size-10 place-items-center rounded-full bg-white/10"><History className="size-4" /></Link>
           <Link href="/courses" aria-label="Mes courses" className={clsx("relative grid size-10 place-items-center rounded-full", shopping ? "bg-lime text-ink" : "bg-white/10")}>
             <ShoppingCart className="size-4" />

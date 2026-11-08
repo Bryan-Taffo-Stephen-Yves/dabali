@@ -85,7 +85,7 @@ export default function ScanHistory() {
         {rows && list.length === 0 && <p className="py-16 text-center text-sm text-white/50">Aucun ticket scanné {day === todayISO() ? "aujourd'hui" : "ce jour-là"}.</p>}
         {list.map((r) => (
           <div key={r.id} className="flex items-start gap-3 rounded-2xl bg-white/5 p-3">
-            <span className="w-11 shrink-0 pt-0.5 text-sm font-extrabold text-lime">{time(r.used_at)}</span>
+            <span className="w-12 shrink-0 pt-0.5 text-center"><span className="block text-sm font-extrabold text-lime">{time(r.used_at)}</span><span className="block text-[10px] font-semibold text-white/50">{new Date(r.used_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", timeZone: "Africa/Abidjan" })}</span></span>
             <div className="min-w-0 flex-1">
               <p className="truncate font-bold">{r.client?.full_name ?? "Client"}<span className="ml-1.5 text-xs font-semibold text-white/50">{r.client?.short_code}</span></p>
               <p className="flex items-center gap-1.5 text-[13px] text-white/70">
