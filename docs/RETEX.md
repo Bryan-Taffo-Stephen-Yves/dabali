@@ -60,6 +60,12 @@ perdre du temps et ce qu'il faut préparer **avant** le hackathon. À compléter
    rangement par rayon par l'IA).
 5. (Si lancé) Caméra : la file d'attente et le temps d'attente en direct.
 
+## 4 bis. Double authentification
+
+Désactivée dans les données de démo (seed) pour que les boutons « Admin » et « Caisse » restent utilisables en
+présentation. En production : Admin → Paramètres → cocher Admin et Caisse (une application type Google Authenticator
+est alors demandée à la première connexion).
+
 ## 5. Ce qui manque encore (à faire avant le jour J)
 
 - [x] Script unique « tout installer » : `scripts/install.sh`.
