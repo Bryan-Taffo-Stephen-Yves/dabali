@@ -3,7 +3,7 @@ import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Camera, MessageCircleReply, Star, X } from "lucide-react";
-import { rpc, supabase } from "@/lib/supabase/client";
+import { rpc, supabase, myId } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/app/page-header";
 import { DishImage } from "@/components/app/dish-image";
 import { Button } from "@/components/ui/button";
@@ -58,8 +58,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
     let path: string | null = null;
     if (photo) {
       const sb = supabase();
-      const { data: { user } } = await sb.auth.getUser();
-      path = `${user!.id}/${id}-${Date.now()}.jpg`;
+      path = `${await myId()}/${id}-${Date.now()}.jpg`;
       const { error } = await sb.storage.from("reviews").upload(path, photo, { contentType: "image/jpeg", upsert: false });
       if (error) { setBusy(false); return toast("err", "Envoi de la photo impossible."); }
     }

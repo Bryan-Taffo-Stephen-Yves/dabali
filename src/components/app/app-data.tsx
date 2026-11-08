@@ -1,8 +1,9 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase/client";
+import { myId, supabase } from "@/lib/supabase/client";
 import { PROFILE_COLUMNS, type Profile } from "@/lib/types";
 import { buzz, confetti } from "@/lib/confetti";
+import { warmOffline } from "@/lib/offline";
 
 type AppData = {
   profile: Profile | null;
@@ -21,13 +22,14 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     const sb = supabase();
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) return;
+    const uid = await myId();
+    if (!uid || !navigator.onLine) return; // hors ligne : on garde les valeurs du cache
     const [p, w, n] = await Promise.all([
-      sb.from("profiles").select(PROFILE_COLUMNS).eq("id", user.id).single(),
-      sb.from("wallets").select("balance").eq("user_id", user.id).single(),
-      sb.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null),
+      sb.from("profiles").select(PROFILE_COLUMNS).eq("id", uid).single(),
+      sb.from("wallets").select("balance").eq("user_id", uid).single(),
+      sb.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", uid).is("read_at", null),
     ]);
+    if (p.error && w.error) return;
     if (p.data) setProfile(p.data as Profile);
     if (w.data) setBalance(w.data.balance);
     setUnread(n.count ?? 0);
@@ -44,8 +46,9 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
     const sb = supabase();
     let channel: ReturnType<typeof sb.channel> | undefined;
-    sb.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
+    myId().then((uid) => {
+      if (!uid) return;
+      const user = { id: uid };
       channel = sb
         .channel(`me-${user.id}`)
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "wallets", filter: `user_id=eq.${user.id}` },
@@ -60,6 +63,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("focus", onFocus);
     return () => { window.removeEventListener("focus", onFocus); if (channel) sb.removeChannel(channel); };
   }, [refresh]);
+
+  // Appli client ouverte en ligne : on garde toutes ses pages (et leurs fichiers) pour le mode avion
+  useEffect(() => {
+    let id: ReturnType<typeof setTimeout>;
+    const warm = () => { clearTimeout(id); id = setTimeout(() => warmOffline(), 2500); };
+    warm();
+    window.addEventListener("online", warm);
+    return () => { clearTimeout(id); window.removeEventListener("online", warm); };
+  }, []);
 
   // 10 points atteints : confettis une fois par petit-déjeuner gagné (pas au premier affichage d'un appareil)
   useEffect(() => {

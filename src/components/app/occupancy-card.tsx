@@ -17,7 +17,8 @@ export function OccupancyCard() {
   const [o, setO] = useState<Occupancy | null>(null);
 
   useEffect(() => {
-    const load = () => rpc<Occupancy>("occupancy_now").then((r) => setO(r as unknown as Occupancy));
+    // Hors ligne ou erreur : on garde la dernière valeur (une réponse d'erreur n'est pas une affluence)
+    const load = () => rpc<Occupancy>("occupancy_now").then((r) => { if (r.ok !== false && "status" in r) setO(r as unknown as Occupancy); else setO((p) => p ?? { status: "unknown" }); });
     load();
     const id = setInterval(load, 30_000);
     const sb = supabase();
@@ -25,7 +26,10 @@ export function OccupancyCard() {
     return () => { clearInterval(id); sb.removeChannel(ch); };
   }, []);
 
-  if (!o || o.status === "unknown") return <div className="h-[92px] animate-pulse rounded-[22px] bg-card" />;
+  if (!o) return <div className="h-[92px] animate-pulse rounded-[22px] bg-card" />;
+  if (o.status === "unknown" || !(o.status === "closed" || o.level in LEVEL)) {
+    return <p className="rounded-[22px] bg-card p-4 text-sm font-semibold text-muted shadow-[var(--shadow-card)]">Affluence indisponible pour le moment.</p>;
+  }
 
   if (o.status === "closed") {
     return (

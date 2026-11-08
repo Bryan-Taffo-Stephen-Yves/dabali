@@ -4,7 +4,8 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import { Bell } from "lucide-react";
-import { supabase } from "@/lib/supabase/client";
+import { supabase, myId } from "@/lib/supabase/client";
+import { readCache, writeCache } from "@/lib/offline";
 import { PageHeader } from "@/components/app/page-header";
 import { useAppData } from "@/components/app/app-data";
 import { dateTime } from "@/lib/format";
@@ -18,11 +19,16 @@ export default function NotificationsPage() {
   useEffect(() => {
     (async () => {
       const sb = supabase();
-      const { data: { user } } = await sb.auth.getUser();
-      const { data } = await sb.from("notifications").select("id, type, title, body, read_at, created_at, data")
-        .eq("user_id", user!.id).order("created_at", { ascending: false }).limit(50);
-      setList(data ?? []);
-      await sb.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user!.id).is("read_at", null);
+      const cached = readCache<N[]>("dabali:notifs");
+      if (cached) setList(cached);
+      const uid = await myId();
+      if (!uid || !navigator.onLine) { setList((l) => l ?? []); return; }
+      const { data, error } = await sb.from("notifications").select("id, type, title, body, read_at, created_at, data")
+        .eq("user_id", uid).order("created_at", { ascending: false }).limit(50);
+      if (error || !data) { setList((l) => l ?? []); return; }
+      setList(data);
+      writeCache("dabali:notifs", data);
+      await sb.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", uid).is("read_at", null);
       refresh();
     })();
   }, [refresh]);

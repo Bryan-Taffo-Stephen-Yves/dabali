@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Star } from "lucide-react";
-import { rpc, supabase } from "@/lib/supabase/client";
+import { rpc, supabase, myId } from "@/lib/supabase/client";
 import { Sheet } from "@/components/ui/sheet";
 import { DishImage } from "@/components/app/dish-image";
 import type { PendingReview } from "@/lib/reviews";
@@ -31,8 +31,9 @@ export function ReviewPrompt() {
     check();
     const sb = supabase();
     let ch: ReturnType<typeof sb.channel> | undefined;
-    sb.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
+    myId().then((uid) => {
+      if (!uid) return;
+      const user = { id: uid };
       ch = sb.channel(`review-${user.id}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
           (e) => { if ((e.new as { type: string }).type === "rate_dish") check(); })

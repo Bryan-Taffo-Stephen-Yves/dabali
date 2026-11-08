@@ -1,5 +1,6 @@
 "use client";
 import { supabase } from "@/lib/supabase/client";
+import { readCache, writeCache } from "@/lib/offline";
 import type { MenuItem, ServiceKind } from "@/lib/types";
 
 export const MENU_ITEM_COLUMNS =
@@ -8,14 +9,23 @@ export const MENU_ITEM_COLUMNS =
 export type DishStat = { dish_id: string; avg_stars: number | null; ratings_count: number };
 
 export async function fetchMenu(from: string, to: string): Promise<MenuItem[]> {
-  const { data } = await supabase().from("menu_items").select(MENU_ITEM_COLUMNS)
+  // Hors ligne : dernier menu gardé sur le téléphone, limité aux jours demandés
+  const offline = () => (readCache<MenuItem[]>("dabali:menu") ?? []).filter((i) => i.service_date >= from && i.service_date <= to);
+  if (!navigator.onLine) return offline();
+  const { data, error } = await supabase().from("menu_items").select(MENU_ITEM_COLUMNS)
     .gte("service_date", from).lte("service_date", to).order("service_date").order("price", { ascending: false });
-  return (data ?? []) as unknown as MenuItem[];
+  if (error || !data) return offline();
+  writeCache("dabali:menu", data);
+  return data as unknown as MenuItem[];
 }
 
 export async function fetchDishStats(): Promise<Record<string, DishStat>> {
+  if (!navigator.onLine) return readCache("dabali:dish-stats") ?? {};
   const { data } = await supabase().from("dish_stats").select("dish_id, avg_stars, ratings_count");
-  return Object.fromEntries((data ?? []).map((s) => [s.dish_id, s as DishStat]));
+  if (!data) return readCache("dabali:dish-stats") ?? {};
+  const out = Object.fromEntries(data.map((s) => [s.dish_id, s as DishStat]));
+  writeCache("dabali:dish-stats", out);
+  return out;
 }
 
 export function soldOut(i: Pick<MenuItem, "is_sold_out" | "is_full">) {
@@ -57,8 +67,11 @@ export const DEFAULT_SERVICES: Services = {
 };
 
 export async function fetchServices(): Promise<Services> {
+  const saved = readCache<Partial<Services>>("dabali:services") ?? {};
+  if (!navigator.onLine) return { ...DEFAULT_SERVICES, ...saved };
   const { data } = await supabase().from("settings").select("value").eq("key", "services").maybeSingle();
-  return { ...DEFAULT_SERVICES, ...((data?.value as Partial<Services>) ?? {}) };
+  if (data?.value) writeCache("dabali:services", data.value);
+  return { ...DEFAULT_SERVICES, ...((data?.value as Partial<Services>) ?? saved) };
 }
 
 /** Le service est-il terminé ? (l'achat est alors refusé par le serveur) */

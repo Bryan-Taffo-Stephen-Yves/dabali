@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { ArrowDownLeft, ArrowUpRight, Banknote, ChevronDown, Gift, RotateCcw, Smartphone, UtensilsCrossed } from "lucide-react";
-import { supabase } from "@/lib/supabase/client";
+import { myId, supabase } from "@/lib/supabase/client";
+import { readCache, writeCache } from "@/lib/offline";
 import { PageHeader } from "@/components/app/page-header";
 import { fcfa, signedFcfa, relativeDay, time, todayISO } from "@/lib/format";
 
@@ -67,14 +68,20 @@ export default function HistoryPage() {
   const [txs, setTxs] = useState<Tx[] | null>(null);
   const [filter, setFilter] = useState("all");
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [stale, setStale] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const sb = supabase();
-      const { data: { user } } = await sb.auth.getUser();
-      const { data } = await sb.from("transactions").select("id, type, amount, balance_after, note, created_at, counterpart_name")
-        .eq("user_id", user!.id).order("created_at", { ascending: false }).limit(150);
-      setTxs(data ?? []);
+      // Dernière liste gardée sur le téléphone : affichée tout de suite, et seule source hors ligne
+      const cached = readCache<Tx[]>("dabali:tx");
+      if (cached) setTxs(cached);
+      const uid = await myId();
+      if (!uid || !navigator.onLine) { setTxs((t) => t ?? []); setStale(true); return; }
+      const { data, error } = await supabase().from("transactions").select("id, type, amount, balance_after, note, created_at, counterpart_name")
+        .eq("user_id", uid).order("created_at", { ascending: false }).limit(150);
+      if (error || !data) { setTxs((t) => t ?? []); setStale(true); return; }
+      setTxs(data); setStale(false);
+      writeCache("dabali:tx", data);
     })();
   }, []);
 
@@ -106,6 +113,7 @@ export default function HistoryPage() {
           ))}
         </div>
 
+        {stale && <p className="mt-4 rounded-2xl bg-warn-soft px-4 py-2.5 text-sm font-semibold text-[#92400e]">Hors ligne : dernier historique enregistré sur ce téléphone.</p>}
         {txs === null && <div className="mt-4 h-64 animate-pulse rounded-[24px] bg-card" />}
         {Object.entries(groups).map(([day, items]) => (
           <section key={day} className="mt-5">

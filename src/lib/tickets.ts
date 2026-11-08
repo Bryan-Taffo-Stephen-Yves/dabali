@@ -1,5 +1,6 @@
 "use client";
-import { edge, supabase } from "@/lib/supabase/client";
+import { edge, supabase, myId, isOffline } from "@/lib/supabase/client";
+import { warmOffline } from "@/lib/offline";
 import { TICKET_COLUMNS, type Ticket, type TicketStatus } from "@/lib/types";
 
 /** Statut affiché : un ticket « valide » dont le service est fini passe au rouge sans attendre le cron. */
@@ -19,11 +20,13 @@ const ORDER: Record<TicketStatus, number> = { valid: 0, expired: 1, used: 2, can
 
 export async function fetchMyTickets(limit = 60): Promise<Ticket[]> {
   const sb = supabase();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return [];
-  const { data } = await sb.from("tickets").select(TICKET_COLUMNS).eq("user_id", user.id)
+  const uid = await myId();
+  // Hors ligne ou erreur : on garde les tickets enregistrés sur le téléphone (jamais une liste vide par erreur)
+  if (!uid || isOffline()) return sortTickets(cachedTickets());
+  const { data, error } = await sb.from("tickets").select(TICKET_COLUMNS).eq("user_id", uid)
     .order("valid_from", { ascending: false }).limit(limit);
-  const list = (data ?? []) as unknown as Ticket[];
+  if (error || !data) return sortTickets(cachedTickets());
+  const list = data as unknown as Ticket[];
   cacheTickets(list);
   return sortTickets(list);
 }
@@ -75,9 +78,7 @@ export async function syncTokens(): Promise<QrCache> {
   }
   if (r.ok) for (const t of r.tokens) cache[t.ticket_id] = { token: t.token, valid_until: t.valid_until };
   write(Q_KEY, cache);
-  // Préchargement des pages de tickets : le service worker les garde pour le mode avion
-  if (r.ok && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
-    for (const t of r.tokens) fetch(`/app/tickets/${t.ticket_id}`, { credentials: "include" }).catch(() => {});
-  }
+  // Pages des tickets valides gardées par le service worker (avec leurs fichiers) pour le mode avion
+  if (r.ok) warmOffline(r.tokens.map((t) => `/app/tickets/${t.ticket_id}`));
   return cache;
 }

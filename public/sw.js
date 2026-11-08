@@ -3,7 +3,7 @@
 // - pages de l'appli : réseau d'abord, repli sur la dernière version en cache
 // - fichiers statiques Next (/_next/static) : cache d'abord (noms versionnés)
 // - API Supabase : jamais mise en cache ici (les jetons QR sont gardés par l'appli dans localStorage)
-const VERSION = "dabali-v4";
+const VERSION = "dabali-v5";
 const PAGES = ["/app", "/app/tickets", "/app/menu", "/app/profil"];
 
 self.addEventListener("install", (e) => {
@@ -62,14 +62,36 @@ self.addEventListener("fetch", (e) => {
         .catch(async () => {
           const hit = await caches.match(req, { ignoreSearch: true });
           if (hit) return hit;
-          if (url.pathname.startsWith("/app/tickets/")) {
-            const list = await caches.match("/app/tickets");
-            if (list) return list;
-          }
-          return (await caches.match("/app")) || Response.error();
+          // Page jamais ouverte : on redirige vers une page gardée (pas une autre page affichée sous la mauvaise adresse)
+          const to = url.pathname.startsWith("/app/tickets/") && (await caches.match("/app/tickets")) ? "/app/tickets" : "/app";
+          if (url.pathname !== to && (await caches.match(to))) return Response.redirect(to, 302);
+          return Response.error();
         }),
     );
   }
+});
+
+// L'appli demande (en ligne) de garder ses pages et TOUS les fichiers qu'elles chargent :
+// sans cela, une page gardée sans ses fichiers JS s'affiche mais aucun bouton ne répond hors ligne.
+self.addEventListener("message", (e) => {
+  if (!e.data || e.data.type !== "warm" || !Array.isArray(e.data.urls)) return;
+  e.waitUntil((async () => {
+    const cache = await caches.open(VERSION);
+    const assets = new Set();
+    for (const u of e.data.urls.slice(0, 30)) {
+      try {
+        const res = await fetch(u, { credentials: "include" });
+        if (!res.ok || res.redirected || !(res.headers.get("content-type") || "").includes("text/html")) continue;
+        const html = await res.clone().text();
+        await cache.put(u, res);
+        for (const m of html.matchAll(/\/_next\/static\/[^"'\s)\\]+/g)) assets.add(m[0]);
+      } catch {}
+    }
+    await Promise.all([...assets].map(async (a) => {
+      if (await cache.match(a)) return;
+      try { const r = await fetch(a); if (r.ok) await cache.put(a, r); } catch {}
+    }));
+  })());
 });
 
 // Notifications push : affichées même quand l'appli est fermée
