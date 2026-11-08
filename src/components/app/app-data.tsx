@@ -3,7 +3,9 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { myId, supabase } from "@/lib/supabase/client";
 import { PROFILE_COLUMNS, type Profile } from "@/lib/types";
 import { buzz, confetti } from "@/lib/confetti";
-import { warmOffline } from "@/lib/offline";
+import { warmOffline, writeCache } from "@/lib/offline";
+import { fetchMenu } from "@/lib/menu";
+import { addDays, todayISO } from "@/lib/format";
 
 type AppData = {
   profile: Profile | null;
@@ -67,7 +69,19 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   // Appli client ouverte en ligne : on garde toutes ses pages (et leurs fichiers) pour le mode avion
   useEffect(() => {
     let id: ReturnType<typeof setTimeout>;
-    const warm = () => { clearTimeout(id); id = setTimeout(() => warmOffline(), 2500); };
+    const warm = () => {
+      clearTimeout(id);
+      id = setTimeout(async () => {
+        warmOffline();
+        // Données aussi : historique et menu de la semaine, même jamais ouverts
+        const uid = await myId();
+        if (!uid || !navigator.onLine) return;
+        const { data } = await supabase().from("transactions").select("id, type, amount, balance_after, note, created_at, counterpart_name")
+          .eq("user_id", uid).order("created_at", { ascending: false }).limit(150);
+        if (data) writeCache("dabali:tx", data);
+        fetchMenu(todayISO(), addDays(todayISO(), 7)).catch(() => {});
+      }, 2500);
+    };
     warm();
     window.addEventListener("online", warm);
     return () => { clearTimeout(id); window.removeEventListener("online", warm); };
