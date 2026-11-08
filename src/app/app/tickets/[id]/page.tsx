@@ -132,6 +132,7 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
             <ServiceBadge service={t.service} size="size-11" />
             <h2 className="text-[22px] font-extrabold leading-tight">Ticket {label}{t.is_reward && " 🎁"}</h2>
           </div>
+          {t.gift_from && <p className="mx-auto mt-2 w-fit rounded-full bg-lime-soft px-3 py-1 text-sm font-bold text-lime-deep">🎁 Offert par {t.gift_from}</p>}
           {st === "used" && t.dish && <p className="mt-2 text-sm font-bold text-ink-2">Servi : {t.dish.name}</p>}
           {t.extras.length > 0 && (
             <div className="mt-3 flex flex-wrap justify-center gap-1.5">

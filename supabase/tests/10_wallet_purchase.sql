@@ -60,6 +60,11 @@ select tests.eq((select user_id from public.tickets where id = :'t_gift'), tests
 select tests.login('bob');
 select tests.eq((select count(*) from public.tickets where user_id = auth.uid() and status = 'valid')::int, 2, 'bob voit ses 2 tickets offerts');
 select tests.ok(exists (select 1 from public.notifications where type = 'meal_gift'), 'bob notifié');
+select tests.ok((select bool_and(gift_from like 'Alice Kouassi%') from public.tickets where user_id = auth.uid() and status = 'valid'),
+                'bob voit qui lui a offert les tickets');
+select tests.login('alice');
+select tests.ok(exists (select 1 from public.transactions where user_id = auth.uid() and type = 'purchase'
+                  and counterpart_id = tests.uid('bob') and counterpart_name like 'Bob Traoré%'), 'historique d''alice : tickets offerts à bob');
 
 -- ── Annulation : remboursement tant que le ticket est valide ──
 select tests.login('alice');

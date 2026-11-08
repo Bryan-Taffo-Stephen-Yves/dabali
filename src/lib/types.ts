@@ -50,6 +50,7 @@ export type Ticket = {
   service_date: string | null;
   service: ServiceKind;
   is_reward: boolean;
+  gift_from: string | null;
   valid_from: string;
   valid_until: string;
   used_at: string | null;
@@ -60,7 +61,7 @@ export type Ticket = {
 };
 
 export const TICKET_COLUMNS =
-  "id, user_id, buyer_id, status, service_date, service, is_reward, valid_from, valid_until, used_at, total, extras, created_at, dish:dishes(id, name, photo_url, composition)";
+  "id, user_id, buyer_id, status, service_date, service, is_reward, gift_from, valid_from, valid_until, used_at, total, extras, created_at, dish:dishes(id, name, photo_url, composition)";
 
 export const PROFILE_COLUMNS = "id, full_name, phone, short_code, role, points, is_blocked, notify_free_seats";
 

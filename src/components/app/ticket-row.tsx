@@ -25,6 +25,7 @@ export function TicketRow({ t }: { t: Ticket }) {
       <div className="min-w-0 flex-1">
         <p className="truncate font-bold">Ticket {SERVICE_LABEL[t.service]}{t.is_reward && " 🎁"}</p>
         <p className="mt-0.5 truncate text-[13px] text-muted">{sub}</p>
+        {t.gift_from && <p className="mt-0.5 truncate text-[12px] font-bold text-lime-deep">🎁 Offert par {t.gift_from}</p>}
         <div className="mt-1.5 flex flex-wrap gap-1">
           <span className={clsx("rounded-full px-2 py-0.5 text-[11px] font-bold", meta.chip)}>{meta.label}</span>
           {t.extras.map((e) => <span key={e.id} className="rounded-full bg-canvas px-2 py-0.5 text-[11px] font-semibold text-ink-2">+ {e.name}</span>)}

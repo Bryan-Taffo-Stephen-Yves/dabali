@@ -79,7 +79,7 @@ export default function HistoryPage() {
                     <span className={clsx("grid size-10 shrink-0 place-items-center rounded-xl", m.bg)}><I className="size-[18px]" /></span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold">
-                        {t.type === "purchase" && t.note ? t.note
+                        {t.type === "purchase" && t.note ? t.note + (t.counterpart_name ? ` · offert à ${t.counterpart_name}` : "")
                           : t.counterpart_name && t.type === "transfer_in" ? `Reçu de ${t.counterpart_name}`
                           : t.counterpart_name && t.type === "transfer_out" ? `Envoyé à ${t.counterpart_name}`
                           : m.label}
