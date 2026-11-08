@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Delete } from "lucide-react";
 import clsx from "clsx";
 
@@ -9,7 +9,10 @@ export function PinPad({ onComplete, error, busy, label = "Entrez votre code PIN
 }) {
   const [pin, setPin] = useState("");
   useEffect(() => { if (error) setPin(""); }, [error]);
-  useEffect(() => { if (pin.length === 4) onComplete(pin); }, [pin, onComplete]);
+  // Envoi une seule fois par code saisi (pas de nouvel envoi si le parent change de fonction pendant le chargement)
+  const done = useRef(onComplete);
+  done.current = onComplete;
+  useEffect(() => { if (pin.length === 4) done.current(pin); }, [pin]);
 
   const press = (d: string) => !busy && setPin((p) => (p.length < 4 ? p + d : p));
   return (
