@@ -23,8 +23,24 @@ export function PushToggle({ dark = false }: { dark?: boolean }) {
     setBusy(false);
   }
 
-  if (st === null || st === "unsupported") return null;
   const box = clsx("flex w-full items-center gap-3 rounded-[20px] p-3.5 text-left", dark ? "bg-white/10 text-white" : "bg-card shadow-[var(--shadow-card)]");
+  if (st === null) return <div className={clsx(box, "h-[68px] animate-pulse")} />;
+  if (st === "unsupported") {
+    // Toujours visible, avec la raison : sinon l'utilisateur ne sait pas que la fonction existe
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const v = navigator.userAgent.match(/OS (\d+)_(\d+)/);
+    return (
+      <div className={box}>
+        <BellOff className="size-5 shrink-0 opacity-60" />
+        <p className="text-sm">
+          <b>Notifications indisponibles sur cet appareil.</b>{" "}
+          {ios
+            ? <>Il faut iOS 16.4 ou plus récent{v ? <> (vous avez iOS {v[1]}.{v[2]})</> : null} : Réglages → Général → Mise à jour logicielle, puis rouvrez Dabali depuis l&apos;icône.</>
+            : <>Utilisez Chrome, Edge, Firefox ou Safari récent.</>}
+        </p>
+      </div>
+    );
+  }
   if (st === "ios-install") return (
     <div className={box}>
       <Share className="size-5 shrink-0" />
