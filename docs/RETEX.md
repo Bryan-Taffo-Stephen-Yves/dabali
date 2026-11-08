@@ -58,13 +58,25 @@ perdre du temps et ce qu'il faut préparer **avant** le hackathon. À compléter
 3. Admin : « Encaissé · repas servis » augmente au scan ; rupture d'un plat → grisé chez l'étudiant en < 3 s.
 4. Chef : Prévisions (popularité des plats + brief de l'assistant IA), Courses (fiche auto, envoi à l'agent,
    rangement par rayon par l'IA).
-5. (Si lancé) Caméra : la file d'attente et le temps d'attente en direct.
+5. Client sans téléphone : Agent → « Sans téléphone » → nom → PIN 2580 → validé (section 4 ter).
+6. (Si lancé) Caméra : la file d'attente et le temps d'attente en direct.
 
 ## 4 bis. Double authentification
 
 Désactivée dans les données de démo (seed) pour que les boutons « Admin » et « Caisse » restent utilisables en
 présentation. En production : Admin → Paramètres → cocher Admin et Caisse (une application type Google Authenticator
 est alors demandée à la première connexion).
+
+## 4 ter. Client sans téléphone (éteint, perdu, volé)
+
+- **Pas de réseau** : le QR est gardé dans le téléphone, il s'affiche en mode avion.
+- **Téléphone éteint ou perdu** : au scanner, bouton « Sans téléphone » → nom ou code Dabali → le **client** tape
+  son code PIN sur le téléphone de l'agent (`redeem_with_pin`). Le ticket est validé comme un scan.
+  Sécurité : 3 PIN faux = PIN bloqué 15 min + alerte au client ; 10 PIN faux en 1 h = ce mode bloqué pour l'agent ;
+  le client est prévenu à chaque repas validé sans QR ; marqué « sans QR » dans l'historique des scans.
+- **Téléphone perdu ou volé** : Profil → « J'ai perdu mon téléphone » (ou case à cocher au comptoir) : nouveaux QR
+  (les anciens gardés hors ligne sont refusés), autres sessions fermées, notifications retirées de l'ancien appareil.
+- Démo : compte Agent → « Sans téléphone » → « Aya » (DB-2026) → PIN 2580.
 
 ## 5. Ce qui manque encore (à faire avant le jour J)
 

@@ -36,7 +36,7 @@ Mot de passe commun : **`Dabali2026!`** — boutons « Comptes de démo » sur l
 | Rôle | E-mail | Remarque |
 |---|---|---|
 | Client | `client@dabali.ci` | Aya Konan · identifiant **DB-2026** · PIN **2580** · 12 points |
-| Agent | `agent@dabali.ci` | ouvre directement `/scan` |
+| Agent | `agent@dabali.ci` | ouvre directement `/scan` · bouton « Sans téléphone » : chercher « Aya », PIN 2580 |
 | Caisse | `caisse@dabali.ci` | |
 | Chef | `chef@dabali.ci` | |
 | Admin | `admin@dabali.ci` | accès à tout |

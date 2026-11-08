@@ -10,13 +10,13 @@ import { addDays, time, todayISO, SERVICE_LABEL } from "@/lib/format";
 import { SERVICES, type Extra, type ServiceKind } from "@/lib/types";
 
 type Row = {
-  id: string; service: ServiceKind; used_at: string; scanned_by: string; extras: Extra[]; gift_from: string | null; is_reward: boolean;
+  id: string; service: ServiceKind; used_at: string; scanned_by: string; extras: Extra[]; gift_from: string | null; is_reward: boolean; redeem_method: "qr" | "pin";
   client: { full_name: string; short_code: string | null } | null;
   agent: { full_name: string } | null;
   dish: { name: string } | null;
 };
 
-const COLS = "id, service, used_at, scanned_by, extras, gift_from, is_reward, client:profiles!tickets_user_id_fkey(full_name, short_code), agent:profiles!tickets_scanned_by_fkey(full_name), dish:dishes(name)";
+const COLS = "id, service, used_at, scanned_by, extras, gift_from, is_reward, redeem_method, client:profiles!tickets_user_id_fkey(full_name, short_code), agent:profiles!tickets_scanned_by_fkey(full_name), dish:dishes(name)";
 
 /** Historique des tickets scannés au comptoir (agent) : par jour, par service, les miens ou toute l'équipe. */
 export default function ScanHistory() {
@@ -101,6 +101,7 @@ export default function ScanHistory() {
                   : <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/60">sans supplément</span>}
                 {r.gift_from && <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold">🎁 {r.gift_from}</span>}
                 {r.is_reward && <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold">⭐ fidélité</span>}
+                {r.redeem_method === "pin" && <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold">🔑 sans QR</span>}
                 {who === "all" && <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/60">par {r.agent?.full_name ?? "?"}</span>}
               </div>
             </div>

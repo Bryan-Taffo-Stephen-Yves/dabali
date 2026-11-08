@@ -10,13 +10,13 @@ import { SERVICES, type Extra, type ServiceKind } from "@/lib/types";
 
 type Row = {
   id: string; service: ServiceKind; used_at: string; scanned_by: string | null; total: number; extras: Extra[];
-  gift_from: string | null; is_reward: boolean;
+  gift_from: string | null; is_reward: boolean; redeem_method: "qr" | "pin";
   client: { full_name: string; short_code: string | null } | null;
   agent: { full_name: string } | null;
   dish: { name: string } | null;
 };
 
-const COLS = "id, service, used_at, scanned_by, total, extras, gift_from, is_reward, client:profiles!tickets_user_id_fkey(full_name, short_code), agent:profiles!tickets_scanned_by_fkey(full_name), dish:dishes(name)";
+const COLS = "id, service, used_at, scanned_by, total, extras, gift_from, is_reward, redeem_method, client:profiles!tickets_user_id_fkey(full_name, short_code), agent:profiles!tickets_scanned_by_fkey(full_name), dish:dishes(name)";
 
 /** Historique des scans au comptoir : par jour, service, agent ; valeur encaissée ; export CSV. */
 export default function ScansAdmin() {
@@ -64,9 +64,9 @@ export default function ScansAdmin() {
       <PageTitle title="Scans au comptoir" subtitle={`${dayLong(day)} · mis à jour en direct`}>
         <input type="date" value={day} max={todayISO()} onChange={(e) => e.target.value && setDay(e.target.value)} className={input} />
         <button onClick={() => downloadCsv(`scans-${day}.csv`, [
-          ["Date", "Heure", "Client", "Identifiant", "Service", "Plat servi", "Supplément", "Montant (FCFA)", "Agent", "Offert par", "Fidélité"],
+          ["Date", "Heure", "Client", "Identifiant", "Service", "Plat servi", "Supplément", "Montant (FCFA)", "Agent", "Offert par", "Fidélité", "Validation"],
           ...list.map((r) => [day, time(r.used_at), r.client?.full_name ?? "", r.client?.short_code ?? "", SERVICE_LABEL[r.service], r.dish?.name ?? "",
-            (r.extras ?? []).map((e) => e.name).join(" + "), r.total, r.agent?.full_name ?? "", r.gift_from ?? "", r.is_reward ? "oui" : ""]),
+            (r.extras ?? []).map((e) => e.name).join(" + "), r.total, r.agent?.full_name ?? "", r.gift_from ?? "", r.is_reward ? "oui" : "", r.redeem_method === "pin" ? "sans QR (code PIN)" : "QR"]),
         ])} className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-card px-4 text-sm font-bold"><Download className="size-4" />CSV</button>
       </PageTitle>
 
@@ -106,7 +106,7 @@ export default function ScansAdmin() {
                     <td className="whitespace-nowrap px-5 py-2.5"><span className="font-extrabold">{time(r.used_at)}</span><span className="block text-xs text-muted">{new Date(r.used_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Africa/Abidjan" })}</span></td>
                     <td className="px-2">
                       <p className="font-bold">{r.client?.full_name ?? "—"}</p>
-                      <p className="text-xs text-muted">{r.client?.short_code}{r.gift_from ? ` · 🎁 ${r.gift_from}` : ""}{r.is_reward ? " · ⭐ fidélité" : ""}</p>
+                      <p className="text-xs text-muted">{r.client?.short_code}{r.gift_from ? ` · 🎁 ${r.gift_from}` : ""}{r.is_reward ? " · ⭐ fidélité" : ""}{r.redeem_method === "pin" && <span className="ml-1 rounded-full bg-[#fef3c7] px-1.5 py-0.5 font-bold text-[#92400e]">🔑 sans QR</span>}</p>
                     </td>
                     <td className="px-2">
                       <span className="flex items-center gap-2">

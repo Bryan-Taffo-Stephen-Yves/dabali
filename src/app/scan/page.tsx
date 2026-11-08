@@ -2,19 +2,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Check, X, LogOut, CameraOff, Keyboard, ShoppingCart, History, Volume2, VolumeX, Volume1 } from "lucide-react";
+import { Check, X, LogOut, CameraOff, PhoneOff, ShoppingCart, History, Volume2, VolumeX, Volume1 } from "lucide-react";
 import Link from "next/link";
 import { edge, rpc, supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/logo";
 import { ServiceIcon } from "@/components/app/service-icon";
 import { DishImage } from "@/components/app/dish-image";
+import { NoPhoneSheet } from "@/components/scan/no-phone-sheet";
 import { currentService, fetchServices, type Services } from "@/lib/menu";
 import { todayISO, SERVICE_LABEL } from "@/lib/format";
 import { SERVICES, type Extra, type ServiceKind } from "@/lib/types";
 import { audioPref, say, setAudioPref, soundError, soundOk, soundServed, type AudioPref } from "@/lib/scan-sounds";
 
 type Dish = { menu_item_id: string; name: string; photo_url: string | null; available: boolean; left: number | null };
-type Scan = { ticket_id: string; client: string; ticket: string; extras: Extra[]; dishes: Dish[]; batch_size?: number; remaining?: number; gift_from?: string | null; is_reward?: boolean };
+type Scan = { ticket_id: string; client: string; ticket: string; extras: Extra[]; dishes: Dish[]; batch_size?: number; remaining?: number; gift_from?: string | null; is_reward?: boolean; method?: "pin"; secured?: boolean };
 type Fail = { code: string; message: string };
 type Counters = { served: number; outstanding: number };
 
@@ -54,6 +55,8 @@ export default function ScanPage() {
   const [camErr, setCamErr] = useState<string | null>(null);
   const [agent, setAgent] = useState("");
   const [manual, setManual] = useState(false);
+  const manualRef = useRef(false); // caméra en pause pendant la recherche « sans téléphone »
+  useEffect(() => { manualRef.current = manual; }, [manual]);
   const [audioMode, setAudioMode] = useState<AudioPref>("on");
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
@@ -91,7 +94,7 @@ export default function ScanPage() {
 
   const redeem = useCallback(async (token: string) => {
     const now = Date.now();
-    if (busy.current) return;
+    if (busy.current || manualRef.current) return;
     if (lastToken.current && lastToken.current.t === token && now - lastToken.current.at < 4000) return;
     busy.current = true;
     lastToken.current = { t: token, at: now };
@@ -210,10 +213,18 @@ export default function ScanPage() {
           <p className="text-2xl font-extrabold"><span className="text-lime">{counters?.served ?? "–"}</span>
             <span className="text-base font-bold text-white/50"> · {counters?.outstanding ?? "–"} tickets en circulation</span></p>
         </div>
-        <button onClick={() => setManual(true)} className="grid size-14 place-items-center rounded-2xl bg-white/10" aria-label="Saisie manuelle"><Keyboard className="size-6" /></button>
+        <button onClick={() => setManual(true)} className="flex h-[68px] w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-2xl bg-white/10 text-[11px] font-bold leading-tight" aria-label="Client sans téléphone">
+          <PhoneOff className="size-5" />Sans<br />téléphone
+        </button>
       </footer>
 
-      {manual && <ManualEntry onClose={() => setManual(false)} onSubmit={(t) => { setManual(false); redeem(t); }} />}
+      {manual && <NoPhoneSheet service={service} date={date} onClose={() => setManual(false)} onSuccess={(r) => {
+        const sc = r as unknown as Scan;
+        setManual(false); busy.current = true; soundOk();
+        const extras = sc.extras?.length ? `Avec ${sc.extras.map((e) => e.name).join(" et ")}.` : "Sans supplément.";
+        say(`${sc.client.split(" ")[0]}. ${sc.ticket} valide. ${extras}`);
+        setScan(sc); loadCounters();
+      }} />}
 
       {/* Ticket validé : choix du plat servi */}
       {scan && (
@@ -245,6 +256,8 @@ export default function ScanPage() {
             )}
             {scan.gift_from && <span className="rounded-full bg-white/20 px-3 py-1">🎁 Offert par {scan.gift_from}</span>}
             {scan.is_reward && <span className="rounded-full bg-white/20 px-3 py-1">⭐ Ticket fidélité</span>}
+            {scan.method === "pin" && <span className="rounded-full bg-white px-3 py-1 text-ink">🔑 Sans QR · code PIN</span>}
+            {scan.secured && <span className="rounded-full bg-white px-3 py-1 text-ink">📵 Anciens QR désactivés</span>}
           </div>
           <p className="px-5 pb-2 text-sm font-bold uppercase tracking-wider opacity-80">Plat servi</p>
           <div className="grid flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto px-5 pb-4">
@@ -281,21 +294,5 @@ export default function ScanPage() {
         </div>
       )}
     </main>
-  );
-}
-
-function ManualEntry({ onClose, onSubmit }: { onClose: () => void; onSubmit: (t: string) => void }) {
-  const [v, setV] = useState("");
-  return (
-    <div className="fixed inset-0 z-40 flex items-end bg-black/60" onClick={onClose}>
-      <form onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); if (v.trim()) onSubmit(v.trim()); }}
-        className="w-full rounded-t-[28px] bg-card p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-ink">
-        <p className="font-extrabold">Saisie manuelle du code</p>
-        <p className="text-sm text-muted">Collez le contenu du QR (utile si la caméra est défaillante).</p>
-        <textarea value={v} onChange={(e) => setV(e.target.value)} rows={3} autoFocus
-          className="mt-3 w-full rounded-2xl border border-line p-3 font-mono text-sm outline-none focus:border-ink" />
-        <button className="mt-3 h-12 w-full rounded-full bg-ink font-bold text-white">Valider</button>
-      </form>
-    </div>
   );
 }

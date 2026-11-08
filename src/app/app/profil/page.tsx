@@ -4,7 +4,8 @@ import { PushToggle } from "@/components/push-toggle";
 import { InstallApp } from "@/components/install-app";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { LogOut, KeyRound, Bell, Sparkles, Gift, ChevronRight, LayoutDashboard, ScanLine } from "lucide-react";
+import { LogOut, KeyRound, Bell, Sparkles, Gift, ChevronRight, LayoutDashboard, ScanLine, PhoneOff, Smartphone } from "lucide-react";
+import { syncTokens } from "@/lib/tickets";
 import { rpc, supabase } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/app/page-header";
 import { Qr } from "@/components/qr";
@@ -35,6 +36,21 @@ export default function ProfilePage() {
     if (!profile) return;
     await supabase().from("profiles").update({ notify_free_seats: !profile.notify_free_seats }).eq("id", profile.id);
     refresh();
+  }
+
+  // Téléphone perdu ou volé : nouveaux QR, autres appareils déconnectés (celui-ci reste connecté)
+  const [lostOpen, setLostOpen] = useState(false);
+  const [lostBusy, setLostBusy] = useState(false);
+  async function secureDevices() {
+    setLostBusy(true);
+    let keep: string | null = null;
+    try { keep = (await (await navigator.serviceWorker?.getRegistration())?.pushManager.getSubscription())?.endpoint ?? null; } catch {}
+    const r = await rpc<{ tickets: number }>("secure_my_devices", { p_keep_endpoint: keep });
+    setLostBusy(false);
+    if (!r.ok) return toast("err", r.message);
+    await syncTokens().catch(() => {});
+    setLostOpen(false);
+    toast("ok", `Ancien téléphone déconnecté · ${r.tickets} QR renouvelé${r.tickets > 1 ? "s" : ""}.`);
   }
 
   async function onPin(pin: string) {
@@ -83,18 +99,39 @@ export default function ProfilePage() {
           </p>
         </section>
 
+        <section className="mt-4 flex gap-3 rounded-[24px] bg-card p-4 shadow-[var(--shadow-card)]">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-canvas"><Smartphone className="size-[18px]" /></span>
+          <div>
+            <p className="font-bold">Téléphone éteint ou oublié ?</p>
+            <p className="mt-0.5 text-sm text-muted">Vous pouvez quand même manger : au comptoir, donnez votre nom ou votre code <b className="text-ink">{profile?.short_code}</b>, puis tapez votre code PIN sur le téléphone de l&apos;agent.</p>
+          </div>
+        </section>
+
         <div className="mt-4 space-y-3"><InstallApp variant="row" /><PushToggle /></div>
         <div className="mt-4 divide-y divide-line overflow-hidden rounded-[24px] bg-card shadow-[var(--shadow-card)]">
           <Row icon={Bell} label="Alerte places libres" hint="Prévenez-moi quand le réfectoire se vide"
             right={<span className={clsx("h-7 w-12 rounded-full p-1 transition", profile?.notify_free_seats ? "bg-ink" : "bg-line")}>
               <span className={clsx("block size-5 rounded-full transition", profile?.notify_free_seats ? "translate-x-5 bg-lime" : "bg-white")} /></span>}
             onClick={toggleSeats} />
-          <Row icon={KeyRound} label="Changer mon code PIN" onClick={() => { setPinErr(null); setPinStep("old"); }} />
+          <Row icon={KeyRound} label="Changer mon code PIN" hint="Il sert aussi à manger sans téléphone" onClick={() => { setPinErr(null); setPinStep("old"); }} />
+          <Row icon={PhoneOff} label="J'ai perdu mon téléphone" hint="Bloquer les QR et déconnecter l'ancien appareil" onClick={() => setLostOpen(true)} />
           {profile && ["agent", "admin"].includes(profile.role) && <Row icon={ScanLine} label="Ouvrir le scanner" onClick={() => router.push("/scan")} />}
           {profile && ["chef", "caissier", "admin"].includes(profile.role) && <Row icon={LayoutDashboard} label="Tableau de bord" onClick={() => router.push("/admin")} />}
           <Row icon={LogOut} label="Se déconnecter" danger onClick={logout} />
         </div>
       </div>
+
+      <Sheet open={lostOpen} onClose={() => setLostOpen(false)} title="Téléphone perdu ou volé">
+        <ul className="space-y-2 text-sm text-ink-2">
+          <li>• Les QR gardés dans l&apos;ancien téléphone <b>ne fonctionneront plus</b>, même hors ligne.</li>
+          <li>• Vos tickets et votre solde restent intacts : les nouveaux QR s&apos;affichent ici.</li>
+          <li>• L&apos;ancien téléphone est déconnecté et ne reçoit plus vos notifications.</li>
+        </ul>
+        <p className="mt-3 text-xs text-muted">Pensez aussi à changer votre code PIN si quelqu&apos;un a pu le voir.</p>
+        <button onClick={secureDevices} disabled={lostBusy} className="mt-5 h-12 w-full rounded-full bg-err font-bold text-white disabled:opacity-60">
+          {lostBusy ? "Sécurisation…" : "Déconnecter l'ancien téléphone"}
+        </button>
+      </Sheet>
 
       <Sheet open={pinStep !== null} onClose={() => setPinStep(null)} title="Code PIN">
         <PinPad key={pinStep} onComplete={onPin} error={pinErr} label={pinStep === "old" ? "Code actuel" : "Nouveau code"} />
