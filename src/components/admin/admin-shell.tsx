@@ -21,6 +21,7 @@ const NAV: { href: string; label: string; icon: typeof Wallet; roles: Role[] }[]
   { href: "/admin/stock", label: "Stock", icon: Boxes, roles: ["chef", "admin"] },
   { href: "/admin/courses", label: "Courses", icon: ShoppingCart, roles: ["chef", "admin"] },
   { href: "/admin/ventes", label: "Ventes", icon: BarChart3, roles: ["caissier", "chef", "admin"] },
+  { href: "/admin/scans", label: "Scans", icon: ScanLine, roles: ["caissier", "chef", "admin"] },
   { href: "/admin/gaspillage", label: "Gaspillage", icon: Trash2, roles: ["chef", "admin"] },
   { href: "/admin/avis", label: "Avis", icon: Star, roles: ["chef", "admin"] },
   { href: "/admin/affluence", label: "Affluence", icon: Users, roles: ["caissier", "chef", "admin"] },
