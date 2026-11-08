@@ -18,7 +18,7 @@ function detect(): Mode {
  * Garder Dabali sur l'écran d'accueil (téléphone) ou comme appli du navigateur (ordinateur).
  * variant « card » : carte refermable sur l'accueil ; « row » : ligne permanente dans le profil / le menu.
  */
-export function InstallApp({ variant = "card", dark = false }: { variant?: "card" | "row"; dark?: boolean }) {
+export function InstallApp({ variant = "card", dark = false }: { variant?: "card" | "row" | "compact"; dark?: boolean }) {
   const [mode, setMode] = useState<Mode>("hidden");
   const [dismissed, setDismissed] = useState(true);
   const [help, setHelp] = useState(false);
@@ -44,6 +44,15 @@ export function InstallApp({ variant = "card", dark = false }: { variant?: "card
       return;
     }
     setHelp((h) => !h);
+  }
+
+  if (variant === "compact") {
+    if (mode === "manual") return null;
+    return (
+      <button onClick={install} className="flex h-9 w-full items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas">
+        <Download className="size-4" />Installer l&apos;appli
+      </button>
+    );
   }
 
   const steps = mode === "ios"

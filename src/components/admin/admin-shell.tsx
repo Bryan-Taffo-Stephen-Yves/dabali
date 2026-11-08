@@ -50,6 +50,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   const items = NAV.filter((n) => me && n.roles.includes(me.role));
+  // Page ouverte par son adresse alors qu'elle n'est pas prévue pour ce rôle : message clair au lieu d'une page vide
+  const page = [...NAV].sort((a, b) => b.href.length - a.href.length).find((n) => path === n.href || path.startsWith(n.href + "/"));
+  const forbidden = !!(me && page && !page.roles.includes(me.role));
   const logout = async () => { await supabase().auth.signOut(); router.replace("/connexion"); };
 
   return (
@@ -76,7 +79,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <Link href="/scan" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><ScanLine className="size-4" />Scanner</Link>
             )}
             <Link href="/app" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><Smartphone className="size-4" />Appli client</Link>
-            <div className="space-y-2 px-1 py-1"><InstallApp variant="row" /><PushToggle /></div>
+            <InstallApp variant="compact" />
+            <PushToggle compact />
             <Link href="/double-authentification?next=/admin" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><ShieldCheck className="size-4" />Double authentification</Link>
             <div className="flex items-center gap-3 rounded-xl bg-canvas p-3">
               <span className="grid size-9 place-items-center rounded-full bg-lime text-sm font-extrabold">{me?.full_name?.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
@@ -109,7 +113,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <main className="min-w-0 flex-1 px-4 py-6 lg:px-8 lg:py-8">
-          <div className="mx-auto max-w-[1200px]">{children}</div>
+          <div className="mx-auto max-w-[1200px]">
+            {forbidden ? (
+              <div className="mx-auto mt-16 max-w-md rounded-[22px] border border-line bg-card p-8 text-center">
+                <ShieldCheck className="mx-auto size-10 text-muted" />
+                <h1 className="mt-3 text-xl font-extrabold">Page réservée</h1>
+                <p className="mt-1 text-sm text-muted">« {page?.label} » n&apos;est pas accessible avec votre rôle. Demandez à l&apos;administrateur si vous en avez besoin.</p>
+                <Link href="/admin" className="mt-5 inline-flex h-10 items-center rounded-full bg-ink px-5 text-sm font-bold text-white">Retour à la vue d&apos;ensemble</Link>
+              </div>
+            ) : children}
+          </div>
         </main>
       </div>
     </Ctx.Provider>

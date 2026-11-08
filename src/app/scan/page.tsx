@@ -158,7 +158,7 @@ export default function ScanPage() {
       <header className="flex items-center justify-between gap-2 px-4 pb-2 pt-[max(0.8rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-2"><Logo mark /><div>
           <p className="text-sm font-extrabold leading-tight">Scanner</p>
-          <p className="text-[11px] text-white/60">{agent}{now ? ` · ${now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Abidjan" })} · ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Abidjan" }).replace(":", "h")}` : ""}</p>
+          <p className="max-w-[46vw] truncate text-[11px] text-white/60">{agent}{now ? ` · ${now.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Abidjan" })} · ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Abidjan" }).replace(":", "h")}` : ""}</p>
         </div></div>
         <span className="flex items-center gap-2">
           <button onClick={cycleAudio} aria-label={audioMode === "on" ? "Sons et voix activés" : audioMode === "sound" ? "Sons seuls" : "Muet"}

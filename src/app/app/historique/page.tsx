@@ -80,12 +80,12 @@ export default function HistoryPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold">
                         {t.type === "purchase" && t.note ? t.note + (t.counterpart_name ? ` · offert à ${t.counterpart_name}` : "")
-                          : t.counterpart_name && t.type === "transfer_in" ? `Reçu de ${t.counterpart_name}`
-                          : t.counterpart_name && t.type === "transfer_out" ? `Envoyé à ${t.counterpart_name}`
+                          : t.counterpart_name && t.type === "transfer_in" ? `Reçu de ${t.counterpart_name.split(" · ")[0]}`
+                          : t.counterpart_name && t.type === "transfer_out" ? `Envoyé à ${t.counterpart_name.split(" · ")[0]}`
                           : m.label}
                       </p>
                       <p className="truncate text-xs text-muted">
-                        {[t.type === "purchase" || t.counterpart_name ? m.label : null, t.type !== "purchase" ? t.note : null, time(t.created_at)].filter(Boolean).join(" · ")}
+                        {[t.type === "purchase" || t.counterpart_name ? m.label : null, t.counterpart_name?.split(" · ")[1] ?? null, t.type !== "purchase" ? t.note : null, time(t.created_at)].filter(Boolean).join(" · ")}
                       </p>
                     </div>
                     <div className="text-right">

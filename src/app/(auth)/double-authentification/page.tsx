@@ -9,6 +9,7 @@ import { homeFor } from "@/lib/roles";
 
 type Step =
   | { kind: "loading" }
+  | { kind: "intro" }
   | { kind: "enroll"; factorId: string; qr: string; secret: string }
   | { kind: "verify"; factorId: string }
   | { kind: "done"; factorId: string };
@@ -32,12 +33,19 @@ export default function MfaPage() {
     const [{ data: factors }, { data: aal }] = await Promise.all([sb.auth.mfa.listFactors(), sb.auth.mfa.getAuthenticatorAssuranceLevel()]);
     const verified = factors?.totp?.find((f) => f.status === "verified");
     if (verified) return setStep(aal?.currentLevel === "aal2" ? { kind: "done", factorId: verified.id } : { kind: "verify", factorId: verified.id });
-    // Pas encore d'application liée : on nettoie un éventuel essai inachevé puis on génère le QR
+    // Pas encore d'application liée : on attend que la personne clique sur « Commencer »
+    setStep({ kind: "intro" });
+  }, [router]);
+
+  const enroll = useCallback(async () => {
+    setStep({ kind: "loading" });
+    const sb = supabase();
+    const { data: factors } = await sb.auth.mfa.listFactors();
     for (const f of factors?.all ?? []) if (f.status !== "verified") await sb.auth.mfa.unenroll({ factorId: f.id });
     const { data, error } = await sb.auth.mfa.enroll({ factorType: "totp", friendlyName: `Dabali ${new Date().toISOString().slice(0, 10)}` });
     if (error || !data) { toast("err", "Activation impossible pour le moment."); return; }
     setStep({ kind: "enroll", factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret });
-  }, [router, toast]);
+  }, [toast]);
 
   useEffect(() => {
     const n = new URLSearchParams(window.location.search).get("next");
@@ -73,6 +81,15 @@ export default function MfaPage() {
       <h1 className="mt-4 text-[28px] font-extrabold leading-tight">Double authentification</h1>
 
       {step.kind === "loading" && <div className="mt-6 h-64 animate-pulse rounded-[24px] bg-card" />}
+
+      {step.kind === "intro" && (
+        <>
+          <p className="mt-2 text-ink-2">Protégez votre compte : en plus du mot de passe, un code à 6 chiffres de votre téléphone sera demandé à chaque connexion.</p>
+          <p className="mt-3 text-sm text-muted">Il vous faut une application gratuite : Google Authenticator, Microsoft Authenticator ou Authy.</p>
+          <Button block size="lg" variant="dark" className="mt-6" onClick={enroll}>Commencer</Button>
+          <button onClick={() => router.replace(next ?? "/")} className="mt-4 w-full text-center text-sm font-bold text-muted">Plus tard</button>
+        </>
+      )}
 
       {step.kind === "enroll" && (
         <>

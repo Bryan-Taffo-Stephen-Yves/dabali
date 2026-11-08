@@ -6,7 +6,7 @@ import { useToast } from "@/components/ui/toast";
 import { disablePush, enablePush, pushState, type PushState } from "@/lib/push";
 
 /** Activer / couper les notifications push sur ce téléphone (même appli fermée). */
-export function PushToggle({ dark = false }: { dark?: boolean }) {
+export function PushToggle({ dark = false, compact = false }: { dark?: boolean; compact?: boolean }) {
   const toast = useToast();
   const [st, setSt] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -24,6 +24,20 @@ export function PushToggle({ dark = false }: { dark?: boolean }) {
   }
 
   const box = clsx("flex w-full items-center gap-3 rounded-[20px] p-3.5 text-left", dark ? "bg-white/10 text-white" : "bg-card shadow-[var(--shadow-card)]");
+  // Version compacte (barre latérale de l'admin) : une ligne, sans description
+  if (compact) {
+    if (st === null || st === "unsupported" || st === "ios-install") return null;
+    return (
+      <button onClick={toggle} disabled={busy || st === "denied"} title={st === "denied" ? "Bloquées dans les réglages du navigateur" : undefined}
+        className="flex h-9 w-full items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas disabled:opacity-60">
+        {st === "on" ? <Bell className="size-4 text-lime-deep" /> : <BellOff className="size-4" />}
+        <span className="flex-1 text-left">Notifications</span>
+        <span className={clsx("relative h-5 w-9 rounded-full transition", st === "on" ? "bg-ok" : "bg-line")}>
+          <span className={clsx("absolute top-0.5 size-4 rounded-full bg-white shadow transition-all", st === "on" ? "left-[18px]" : "left-0.5")} />
+        </span>
+      </button>
+    );
+  }
   if (st === null) return <div className={clsx(box, "h-[68px] animate-pulse")} />;
   if (st === "unsupported") {
     // Toujours visible, avec la raison : sinon l'utilisateur ne sait pas que la fonction existe

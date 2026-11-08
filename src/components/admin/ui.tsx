@@ -5,10 +5,11 @@ export function Card({ title, subtitle, action, className, children, pad = true 
   title?: string; subtitle?: string; action?: React.ReactNode; className?: string; children: React.ReactNode; pad?: boolean;
 }) {
   return (
-    <section className={clsx("rounded-[22px] border border-line bg-card", pad && "p-5", className)}>
+    // min-w-0 : dans une grille, la carte ne s'élargit pas au-delà de l'écran à cause d'un tableau ou d'une longue ligne
+    <section className={clsx("min-w-0 rounded-[22px] border border-line bg-card", pad && "p-5", className)}>
       {(title || action) && (
-        <header className={clsx("mb-4 flex items-start justify-between gap-3", !pad && "px-5 pt-5")}>
-          <div>
+        <header className={clsx("mb-4 flex flex-wrap items-start justify-between gap-3", !pad && "px-5 pt-5")}>
+          <div className="min-w-0">
             {title && <h2 className="text-[15px] font-extrabold">{title}</h2>}
             {subtitle && <p className="mt-0.5 text-xs text-muted">{subtitle}</p>}
           </div>

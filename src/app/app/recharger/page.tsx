@@ -79,7 +79,7 @@ export default function RechargePage() {
         </p>
         <p className="mt-2 flex gap-2 rounded-2xl bg-card p-3 text-[13px] font-semibold text-ink-2 shadow-[var(--shadow-card)]">
           <Banknote className="mt-0.5 size-4 shrink-0" />
-          En espèces : présentez votre identifiant <b>{profile?.short_code}</b> à la caisse.
+          <span>En espèces : présentez votre identifiant <b className="whitespace-nowrap">{profile?.short_code}</b> à la caisse.</span>
         </p>
 
         <Button size="lg" block className="mt-6" loading={busy} disabled={value < 100 || value > 500000} onClick={pay}>
