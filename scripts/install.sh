@@ -93,11 +93,32 @@ else
   warn "ANTHROPIC_API_KEY absente : l'app marche, sauf les boutons d'assistant IA"
 fi
 
+# ── 3 bis. Notifications push : clés VAPID générées une fois, rangées dans Vault ──
+step "Notifications push"
+if [ "$LOCAL" = 0 ]; then
+  if [ "$("${PSQL[@]}" -At -c "select count(*) from vault.secrets where name = 'vapid_private_key'")" = "0" ]; then
+    keys=$(npx --yes web-push@3.6.7 generate-vapid-keys --json)
+    pub=$(node -e "console.log(JSON.parse(process.argv[1]).publicKey)" "$keys"); priv=$(node -e "console.log(JSON.parse(process.argv[1]).privateKey)" "$keys")
+    "${PSQL[@]}" -v pub="$pub" -v priv="$priv" >/dev/null <<'SQL'
+select vault.create_secret(:'priv', 'vapid_private_key', 'Clé privée VAPID'), vault.create_secret(:'pub', 'vapid_public_key', 'Clé publique VAPID'),
+       vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'push_webhook_secret', 'Secret base → send-push');
+SQL
+    ok "clés VAPID créées · clé publique à mettre dans Netlify : NEXT_PUBLIC_VAPID_PUBLIC_KEY=$pub"
+  else
+    ok "clés VAPID déjà en place"
+  fi
+  "${PSQL[@]}" -c "update public.settings set value = to_jsonb('https://$SUPABASE_PROJECT_REF.supabase.co/functions/v1/send-push'::text) where key = 'push_function_url'" >/dev/null
+  ok "envoi automatique branché (pg_net → send-push)"
+else
+  warn "ignoré en mode local"
+fi
+
 # ── 4. Edge Functions ──
 step "Edge Functions"
 if [ "$FUNCTIONS" = 1 ]; then
-  for fn in ticket-token redeem-ticket forecast-assistant shopping-organize menu-assistant; do
-    npx --yes supabase@latest functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --use-api >/dev/null \
+  for fn in ticket-token redeem-ticket forecast-assistant shopping-organize menu-assistant send-push; do
+    extra=""; [ "$fn" = send-push ] && extra="--no-verify-jwt"   # appelée par la base avec un secret, pas par un utilisateur
+    npx --yes supabase@latest functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --use-api $extra >/dev/null \
       || die "Déploiement de $fn impossible"
     ok "$fn"
   done

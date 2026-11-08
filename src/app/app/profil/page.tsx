@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { PushToggle } from "@/components/push-toggle";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { LogOut, KeyRound, Bell, Sparkles, Gift, ChevronRight, LayoutDashboard, ScanLine } from "lucide-react";
@@ -81,6 +82,7 @@ export default function ProfilePage() {
           </p>
         </section>
 
+        <div className="mt-4"><PushToggle /></div>
         <div className="mt-4 divide-y divide-line overflow-hidden rounded-[24px] bg-card shadow-[var(--shadow-card)]">
           <Row icon={Bell} label="Alerte places libres" hint="Prévenez-moi quand le réfectoire se vide"
             right={<span className={clsx("h-7 w-12 rounded-full p-1 transition", profile?.notify_free_seats ? "bg-ink" : "bg-line")}>

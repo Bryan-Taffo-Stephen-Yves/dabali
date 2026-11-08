@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/logo";
+import { PushToggle } from "@/components/push-toggle";
 import { PROFILE_COLUMNS, type Profile } from "@/lib/types";
 import type { Role } from "@/lib/roles";
 
@@ -74,6 +75,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <Link href="/scan" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><ScanLine className="size-4" />Scanner</Link>
             )}
             <Link href="/app" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><Smartphone className="size-4" />Appli client</Link>
+            <div className="px-1 py-1"><PushToggle /></div>
             <Link href="/double-authentification?next=/admin" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><ShieldCheck className="size-4" />Double authentification</Link>
             <div className="flex items-center gap-3 rounded-xl bg-canvas p-3">
               <span className="grid size-9 place-items-center rounded-full bg-lime text-sm font-extrabold">{me?.full_name?.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>

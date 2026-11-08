@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { ArrowLeft, UtensilsCrossed } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { ServiceIcon } from "@/components/app/service-icon";
+import { PushToggle } from "@/components/push-toggle";
 import { addDays, time, todayISO, SERVICE_LABEL } from "@/lib/format";
 import { SERVICES, type Extra, type ServiceKind } from "@/lib/types";
 
@@ -81,6 +82,7 @@ export default function ScanHistory() {
       </header>
 
       <div className="space-y-2 px-4">
+        <PushToggle dark />
         {rows === null && <div className="h-40 animate-pulse rounded-2xl bg-white/5" />}
         {rows && list.length === 0 && <p className="py-16 text-center text-sm text-white/50">Aucun ticket scanné {day === todayISO() ? "aujourd'hui" : "ce jour-là"}.</p>}
         {list.map((r) => (
