@@ -114,7 +114,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
         <main className="min-w-0 flex-1 px-4 py-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-[1200px]">
-            {forbidden ? (
+            {!me ? (
+              // Profil pas encore chargé : on attend avant de monter la page (évite des appels refusés pour ce rôle)
+              <div className="space-y-4"><div className="h-8 w-56 animate-pulse rounded-xl bg-card" /><div className="h-64 animate-pulse rounded-[22px] bg-card" /></div>
+            ) : forbidden ? (
               <div className="mx-auto mt-16 max-w-md rounded-[22px] border border-line bg-card p-8 text-center">
                 <ShieldCheck className="mx-auto size-10 text-muted" />
                 <h1 className="mt-3 text-xl font-extrabold">Page réservée</h1>
