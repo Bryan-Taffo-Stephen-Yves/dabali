@@ -103,7 +103,7 @@ export default function ScansAdmin() {
                 {rows && list.length === 0 && <tr><td colSpan={6} className="p-5"><Empty>Aucun ticket scanné</Empty></td></tr>}
                 {list.map((r) => (
                   <tr key={r.id} className="border-b border-line last:border-0">
-                    <td className="px-5 py-2.5 font-extrabold">{time(r.used_at)}</td>
+                    <td className="whitespace-nowrap px-5 py-2.5 font-extrabold">{time(r.used_at)}</td>
                     <td className="px-2">
                       <p className="font-bold">{r.client?.full_name ?? "—"}</p>
                       <p className="text-xs text-muted">{r.client?.short_code}{r.gift_from ? ` · 🎁 ${r.gift_from}` : ""}{r.is_reward ? " · ⭐ fidélité" : ""}</p>
@@ -116,7 +116,7 @@ export default function ScansAdmin() {
                     </td>
                     <td className="px-2">{r.extras?.length ? r.extras.map((e) => <Badge key={e.id} tone="lime">+ {e.name}</Badge>) : <span className="text-xs text-muted">—</span>}</td>
                     <td className="px-2 text-right font-semibold">{r.total ? fcfa(r.total) : "offert"}</td>
-                    <td className="px-5 text-muted">{r.agent?.full_name ?? "—"}</td>
+                    <td className="whitespace-nowrap px-5 text-muted">{r.agent?.full_name ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
