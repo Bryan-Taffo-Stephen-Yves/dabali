@@ -4,7 +4,7 @@
 // Ne modifie rien : renvoie une proposition que le chef valide (apply_menu_proposal).
 import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { adminClient, corsHeaders, fail, json } from "../_shared/http.ts";
+import { adminClient, corsHeaders, fail } from "../_shared/http.ts";
 
 const MODEL = "claude-opus-5-5";
 const SERVICES = ["breakfast", "lunch", "snack", "dinner"] as const;
@@ -59,44 +59,59 @@ Deno.serve(async (req) => {
   const { data: ctx, error } = await userDb.rpc("menu_ai_context", { p_week_start: week });
   if (error || !ctx) return fail("FORBIDDEN", "Réservé à la cuisine.", 403);
 
-  let apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!apiKey) apiKey = (await adminClient().rpc("_anthropic_key")).data ?? undefined;
-  if (!apiKey) return fail("NO_KEY", "Clé Anthropic non configurée.", 500);
+  // Le calcul dure ~1 min : la réponse est un flux qui envoie un espace toutes les 10 s (JSON valide une fois complet),
+  // sinon certains navigateurs / réseaux coupent une connexion silencieuse.
+  const work = (async () => {
+    let apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!apiKey) apiKey = (await adminClient().rpc("_anthropic_key")).data ?? undefined;
+    if (!apiKey) return { ok: false, code: "NO_KEY", message: "Clé Anthropic non configurée." };
 
-  let out: { resume: string; items: { date: string; service: string; dish_id: string; planned_qty: number }[]; explications: string[] };
-  try {
-    const client = new Anthropic({ apiKey });
-    const stream = client.beta.messages.stream({
-      model: MODEL,
-      max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-      system: SYSTEM,
-      messages: [{ role: "user", content: `Propose le menu de la semaine du ${week}.\n\n<donnees>\n${JSON.stringify(ctx)}\n</donnees>` }],
-    } as any);
-    const res = await stream.finalMessage();
-    if (res.stop_reason === "refusal") return fail("AI_REFUSED", "L'assistant n'a pas pu proposer de menu.", 502);
-    const text = res.content.find((b: any) => b.type === "text") as { text: string } | undefined;
-    if (!text) return fail("AI_EMPTY", "Réponse vide de l'assistant.", 502);
-    out = JSON.parse(text.text);
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) return fail("AI_AUTH", "Clé Anthropic refusée.", 502);
-    if (e instanceof Anthropic.RateLimitError) return fail("AI_BUSY", "Assistant saturé, réessayez dans une minute.", 503);
-    if (e instanceof Anthropic.APIError) return fail("AI_ERROR", `Erreur de l'assistant (${e.status}).`, 502);
-    return fail("AI_ERROR", "L'assistant est indisponible.", 502);
-  }
+    let out: { resume: string; items: { date: string; service: string; dish_id: string; planned_qty: number }[]; explications: string[] };
+    try {
+      const client = new Anthropic({ apiKey });
+      const stream = client.beta.messages.stream({
+        model: MODEL,
+        max_tokens: 16000,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
+        system: SYSTEM,
+        messages: [{ role: "user", content: `Propose le menu de la semaine du ${week}.\n\n<donnees>\n${JSON.stringify(ctx)}\n</donnees>` }],
+      } as any);
+      const res = await stream.finalMessage();
+      if (res.stop_reason === "refusal") return { ok: false, code: "AI_REFUSED", message: "L'assistant n'a pas pu proposer de menu." };
+      const text = res.content.find((b: any) => b.type === "text") as { text: string } | undefined;
+      if (!text) return { ok: false, code: "AI_EMPTY", message: "Réponse vide de l'assistant." };
+      out = JSON.parse(text.text);
+    } catch (e) {
+      if (e instanceof Anthropic.AuthenticationError) return { ok: false, code: "AI_AUTH", message: "Clé Anthropic refusée." };
+      if (e instanceof Anthropic.RateLimitError) return { ok: false, code: "AI_BUSY", message: "Assistant saturé, réessayez dans une minute." };
+      if (e instanceof Anthropic.APIError) return { ok: false, code: "AI_ERROR", message: `Erreur de l'assistant (${e.status}).` };
+      return { ok: false, code: "AI_ERROR", message: "L'assistant est indisponible." };
+    }
 
-  // Garde-fous : seulement des plats connus, dans leurs services, aux jours prévus, sans doublon
-  const dishes = new Map<string, { nom: string; services_possibles: string[] }>((ctx.plats ?? []).map((p: any) => [p.id, p]));
-  const allowed = new Map<string, string[]>((ctx.jours ?? []).map((j: any) => [j.date, j.services]));
-  const seen = new Set<string>();
-  const items = out.items.filter((x) => {
-    const d = dishes.get(x.dish_id); const k = `${x.date}|${x.service}|${x.dish_id}`;
-    const ok = d && d.services_possibles.includes(x.service) && allowed.get(x.date)?.includes(x.service) && !seen.has(k);
-    seen.add(k);
-    return ok;
-  }).map((x) => ({ ...x, planned_qty: Math.min(Math.max(Math.round(x.planned_qty || 20), 5), 500), dish: dishes.get(x.dish_id)!.nom }));
+    // Garde-fous : seulement des plats connus, dans leurs services, aux jours prévus, sans doublon
+    const dishes = new Map<string, { nom: string; services_possibles: string[] }>((ctx.plats ?? []).map((p: any) => [p.id, p]));
+    const allowed = new Map<string, string[]>((ctx.jours ?? []).map((j: any) => [j.date, j.services]));
+    const seen = new Set<string>();
+    const items = out.items.filter((x) => {
+      const d = dishes.get(x.dish_id); const k = `${x.date}|${x.service}|${x.dish_id}`;
+      const ok = d && d.services_possibles.includes(x.service) && allowed.get(x.date)?.includes(x.service) && !seen.has(k);
+      seen.add(k);
+      return ok;
+    }).map((x) => ({ ...x, planned_qty: Math.min(Math.max(Math.round(x.planned_qty || 20), 5), 500), dish: dishes.get(x.dish_id)!.nom }));
 
-  return json({ ok: true, week_start: week, resume: out.resume, explications: out.explications, items, rejected: out.items.length - items.length });
+    return { ok: true, week_start: week, resume: out.resume, explications: out.explications, items, rejected: out.items.length - items.length };
+  })();
+  const enc = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(ctrl) {
+      ctrl.enqueue(enc.encode(" "));
+      const beat = setInterval(() => ctrl.enqueue(enc.encode(" ")), 10_000);
+      try { ctrl.enqueue(enc.encode(JSON.stringify(await work))); }
+      catch { ctrl.enqueue(enc.encode(JSON.stringify({ ok: false, code: "AI_ERROR", message: "L'assistant est indisponible." }))); }
+      finally { clearInterval(beat); ctrl.close(); }
+    },
+  });
+  return new Response(stream, { headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 });
