@@ -69,6 +69,7 @@ function Buy() {
     });
     setBusy(false);
     if (!r.ok) {
+      if (r.code === "PIN_NOT_SET") { setPinOpen(false); toast("err", "Crée d'abord ton code PIN."); router.push("/app/profil?pin=new&back=/app/acheter"); return; }
       if (r.code.startsWith("PIN")) { setPinError(r.message); setPinOpen(true); return; }
       setPinOpen(false); toast("err", r.message); return;
     }

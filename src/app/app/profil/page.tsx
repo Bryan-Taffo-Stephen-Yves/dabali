@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { LogOut, KeyRound, Bell, Sparkles, Gift, ChevronRight, LayoutDashboard, ScanLine } from "lucide-react";
@@ -19,6 +19,15 @@ export default function ProfilePage() {
   const [oldPin, setOldPin] = useState("");
   const [pinErr, setPinErr] = useState<string | null>(null);
   const points = profile?.points ?? 0;
+  const [back, setBack] = useState<string | null>(null);
+
+  // Arrivée depuis un paiement ou un transfert sans code PIN : on ouvre directement la création
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("pin") === "new") { setOldPin(""); setPinStep("new"); }
+    const b = q.get("back");
+    if (b?.startsWith("/app/")) setBack(b);
+  }, []);
 
   async function toggleSeats() {
     if (!profile) return;
@@ -31,7 +40,8 @@ export default function ProfilePage() {
     const r = await rpc("set_pin", { p_pin: pin, p_current_pin: oldPin });
     if (!r.ok) { setPinErr(r.message); if (r.code.startsWith("PIN_INVALID") || r.code === "PIN_LOCKED") setPinStep("old"); return; }
     setPinStep(null);
-    toast("ok", "Code PIN modifié.");
+    toast("ok", oldPin ? "Code PIN modifié." : "Code PIN créé.");
+    if (back) router.push(back);
   }
 
   async function logout() {

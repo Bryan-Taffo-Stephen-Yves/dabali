@@ -482,3 +482,7 @@ update public.dishes d set photo_url = v.url, photo_credit = v.credit, photo_sou
   ('Salade composée', '/dishes/salade-composee.jpg', 'Photo : Pexels', 'https://www.pexels.com/photo/bowl-of-vegetable-salad-406152/'),
   ('Spaghetti sautés', '/dishes/spaghetti-sautes.jpg', 'Photo : Pexels', 'https://www.pexels.com/photo/closeup-of-a-dish-with-noodles-14079234/')
 ) v(name, url, credit, src) where d.name = v.name;
+
+-- Tous les comptes clients de démo ont le PIN 2580 (pour tester transferts et achats depuis n'importe quel compte)
+update public.profiles p set pin_hash = extensions.crypt('2580', extensions.gen_salt('bf', 8))
+  from auth.users u where u.id = p.id and u.email like 'client%@dabali.ci' and p.pin_hash is null;

@@ -31,6 +31,7 @@ export default function TransferPage() {
     const r = await rpc<{ balance: number }>("transfer_funds", { p_recipient_id: to.id, p_amount: value, p_pin: pin, p_note: note || null });
     setBusy(false);
     if (!r.ok) {
+      if (r.code === "PIN_NOT_SET") { setPinOpen(false); toast("err", "Crée d'abord ton code PIN."); return router.push("/app/profil?pin=new&back=/app/transferer"); }
       if (r.code.startsWith("PIN")) return setPinError(r.message);
       setPinOpen(false);
       return toast("err", r.message);

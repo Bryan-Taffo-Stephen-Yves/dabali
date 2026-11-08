@@ -39,7 +39,7 @@ Mot de passe commun : **`Dabali2026!`** — boutons « Comptes de démo » sur l
 | Caisse | `caisse@dabali.ci` | |
 | Chef | `chef@dabali.ci` | |
 | Admin | `admin@dabali.ci` | accès à tout |
-| 29 autres clients | `client01@dabali.ci` … `client29@dabali.ci` | |
+| 29 autres clients | `client01@dabali.ci` … `client29@dabali.ci` | PIN **2580** aussi |
 
 ## Lancer en local
 
