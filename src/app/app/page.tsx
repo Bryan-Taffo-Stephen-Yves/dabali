@@ -65,7 +65,7 @@ export default function HomePage() {
       <Link href="/app/profil#fidelite" className="mt-3 flex items-center gap-3 rounded-[22px] bg-card p-3.5 shadow-[var(--shadow-card)]">
         <span className="grid size-10 place-items-center rounded-xl bg-lime-soft"><Sparkles className="size-5 text-lime-deep" /></span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold">{rewardReady ? "Dessert offert disponible 🎉" : `${profile?.points ?? 0} / 10 points`}</p>
+          <p className="text-sm font-bold">{rewardReady ? "Petit-déjeuner offert disponible 🎉" : `${profile?.points ?? 0} / 10 points`}</p>
           <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-canvas">
             <div className="h-full rounded-full bg-lime-deep transition-all" style={{ width: `${Math.min(100, (profile?.points ?? 0) * 10)}%` }} />
           </div>
