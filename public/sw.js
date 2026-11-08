@@ -3,7 +3,7 @@
 // - pages de l'appli : réseau d'abord, repli sur la dernière version en cache
 // - fichiers statiques Next (/_next/static) : cache d'abord (noms versionnés)
 // - API Supabase : jamais mise en cache ici (les jetons QR sont gardés par l'appli dans localStorage)
-const VERSION = "dabali-v3-icons";
+const VERSION = "dabali-v4";
 const PAGES = ["/app", "/app/tickets", "/app/menu", "/app/profil"];
 
 self.addEventListener("install", (e) => {
