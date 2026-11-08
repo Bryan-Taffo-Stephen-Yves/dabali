@@ -3,7 +3,7 @@ import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { ArrowLeftRight, Check, ChevronLeft, Sun, WifiOff, Star, XCircle } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronLeft, Sun, Star, XCircle } from "lucide-react";
 import { rpc, supabase } from "@/lib/supabase/client";
 import { Qr } from "@/components/qr";
 import { Button } from "@/components/ui/button";
@@ -93,11 +93,7 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
         <span className={clsx("rounded-full px-3 py-1 text-xs font-extrabold", STATUS_META[st].chip)}>{STATUS_META[st].label}</span>
       </header>
 
-      {offline && (
-        <p className="mt-3 flex items-center justify-center gap-2 rounded-full bg-ink px-3 py-2 text-xs font-bold text-white">
-          <WifiOff className="size-4 text-lime" /> Hors ligne : votre QR reste valable
-        </p>
-      )}
+      {/* Hors ligne : bandeau commun en haut de l'appli (« vos QR marchent ») */}
 
       {/* Talon */}
       <section className="relative mt-4 drop-shadow-[0_10px_30px_rgba(22,24,29,0.10)]">

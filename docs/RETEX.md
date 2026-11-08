@@ -43,6 +43,11 @@ perdre du temps et ce qu'il faut préparer **avant** le hackathon. À compléter
 10. **Animation qui laisse un `transform`** sur un conteneur de page : les éléments `position: fixed` à l'intérieur
    (barres du bas, feuilles) se décalent. → Finir l'animation sur `transform: none`.
 
+11. **Hors ligne cassé** : `auth.getUser()` interroge le serveur → sans réseau, « personne de connecté » et pages
+   qui plantent ; le service worker gardait les pages **sans leurs fichiers JS** → boutons inactifs.
+   → `getSession()` (lu sur le téléphone), cache local des listes, service worker qui garde pages + fichiers
+   (message « warm »), écran d'erreur par page. Tester avec `context.setOffline(true)` dans Playwright.
+
 ## 3. Ordre de construction le jour J (cible : 2-3 h)
 
 1. Créer le projet Supabase, le site Netlify (lié au dépôt GitHub) et le jeton Supabase (10 min).
