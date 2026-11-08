@@ -4,10 +4,10 @@
 @theme {
   --color-lime: #c8f135;
   --color-lime-soft: #eefbc4;
-  --color-lime-deep: #8fb515;
+  --color-lime-deep: #66850a; /* texte vert lisible sur blanc (contraste ≈ 4,5:1) */
   --color-ink: #16181d;
   --color-ink-2: #3a3f4b;
-  --color-muted: #6b7280;
+  --color-muted: #5b6270; /* textes secondaires : lisibles au soleil */
   --color-line: #e7e9ee;
   --color-canvas: #f6f7f9;
   --color-card: #ffffff;
@@ -17,7 +17,7 @@
   --color-err-soft: #fee2e2;
   --color-warn: #f59e0b;
   --color-warn-soft: #fef3c7;
-  --color-off: #9ca3af;
+  --color-off: #858b97;
 
   --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
 

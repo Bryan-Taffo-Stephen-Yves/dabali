@@ -1,22 +1,61 @@
 "use client";
 import { useEffect, useState } from "react";
 import clsx from "clsx";
-import { ArrowDownLeft, ArrowUpRight, Banknote, Gift, RotateCcw, Smartphone, UtensilsCrossed } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Banknote, ChevronDown, Gift, RotateCcw, Smartphone, UtensilsCrossed } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/app/page-header";
 import { fcfa, signedFcfa, relativeDay, time, todayISO } from "@/lib/format";
 
 type Tx = { id: string; type: string; amount: number; balance_after: number; note: string | null; created_at: string; counterpart_name: string | null };
 
+// Une couleur par famille : vert = argent qui entre, bleu = transferts envoyés, gris = repas achetés
 const META: Record<string, { label: string; icon: typeof Gift; bg: string }> = {
   recharge: { label: "Recharge Mobile Money", icon: Smartphone, bg: "bg-lime-soft text-lime-deep" },
   recharge_cash: { label: "Recharge en caisse", icon: Banknote, bg: "bg-lime-soft text-lime-deep" },
   purchase: { label: "Achat de ticket", icon: UtensilsCrossed, bg: "bg-canvas text-ink" },
   transfer_in: { label: "Transfert reçu", icon: ArrowDownLeft, bg: "bg-ok-soft text-[#15803d]" },
-  transfer_out: { label: "Transfert envoyé", icon: ArrowUpRight, bg: "bg-canvas text-ink" },
+  transfer_out: { label: "Transfert envoyé", icon: ArrowUpRight, bg: "bg-[#e0ebff] text-[#1d4ed8]" },
   refund: { label: "Remboursement", icon: RotateCcw, bg: "bg-ok-soft text-[#15803d]" },
   bonus: { label: "Bonus", icon: Gift, bg: "bg-lime-soft text-lime-deep" },
 };
+
+const who = (t: Tx) => t.counterpart_name?.split(" · ")[0] ?? "";
+const code = (t: Tx) => t.counterpart_name?.split(" · ")[1] ?? null;
+
+/** Titre court et toujours du même style */
+function title(t: Tx) {
+  if (t.type === "purchase") {
+    const what = t.note ? (/^\d+\s*×/.test(t.note) ? t.note.replace(/^(\d+)\s*×\s*ticket/i, "$1 × ticket") : `Ticket · ${t.note}`) : "Achat de ticket";
+    return what.charAt(0).toUpperCase() + what.slice(1);
+  }
+  if (t.type === "transfer_in" && t.counterpart_name) return `Reçu de ${who(t)}`;
+  if (t.type === "transfer_out" && t.counterpart_name) return `Envoyé à ${who(t)}`;
+  if (t.type === "refund") return t.note?.includes(" · ") ? `Remboursé · ${t.note.split(" · ").slice(1).join(" · ")}` : "Remboursement";
+  return META[t.type]?.label ?? "Opération";
+}
+
+/** Ligne du dessous : l'heure d'abord, puis l'utile (code, bénéficiaire, message) */
+function detail(t: Tx) {
+  const parts = [time(t.created_at)];
+  if (t.type === "purchase" && t.counterpart_name) parts.push(`offert à ${who(t)}`);
+  if (t.type.startsWith("transfer") && code(t)) parts.push(code(t)!);
+  if (t.type.startsWith("transfer") && t.note) parts.push(`« ${t.note} »`);
+  if (t.type === "recharge" && t.note?.toLowerCase().includes("simulation")) parts.push("simulation");
+  return parts.join(" · ");
+}
+
+/** Transferts répétés vers / depuis la même personne le même jour : regroupés en une ligne */
+type Row = { key: string; items: Tx[] };
+function rows(items: Tx[]): Row[] {
+  const out: Row[] = [];
+  for (const t of items) {
+    const last = out[out.length - 1];
+    const groupable = t.type.startsWith("transfer") && t.counterpart_name;
+    if (groupable && last && last.items[0].type === t.type && last.items[0].counterpart_name === t.counterpart_name) last.items.push(t);
+    else out.push({ key: t.id, items: [t] });
+  }
+  return out;
+}
 
 const FILTERS = [
   { id: "all", label: "Tout" },
@@ -27,6 +66,7 @@ const FILTERS = [
 export default function HistoryPage() {
   const [txs, setTxs] = useState<Tx[] | null>(null);
   const [filter, setFilter] = useState("all");
+  const [open, setOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     (async () => {
@@ -71,34 +111,55 @@ export default function HistoryPage() {
           <section key={day} className="mt-5">
             <h2 className="mb-2 text-xs font-extrabold uppercase tracking-wider text-muted">{relativeDay(day)}</h2>
             <div className="divide-y divide-line overflow-hidden rounded-[22px] bg-card shadow-[var(--shadow-card)]">
-              {items.map((t) => {
-                const m = META[t.type] ?? META.bonus;
-                const I = m.icon;
-                return (
-                  <div key={t.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className={clsx("grid size-10 shrink-0 place-items-center rounded-xl", m.bg)}><I className="size-[18px]" /></span>
+              {rows(items).map((r) => r.items.length === 1 ? <TxRow key={r.key} t={r.items[0]} /> : (
+                <div key={r.key}>
+                  <button onClick={() => setOpen((o) => ({ ...o, [r.key]: !o[r.key] }))} aria-expanded={!!open[r.key]}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-canvas">
+                    <Icon t={r.items[0]} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold">
-                        {t.type === "purchase" && t.note ? t.note + (t.counterpart_name ? ` · offert à ${t.counterpart_name}` : "")
-                          : t.counterpart_name && t.type === "transfer_in" ? `Reçu de ${t.counterpart_name.split(" · ")[0]}`
-                          : t.counterpart_name && t.type === "transfer_out" ? `Envoyé à ${t.counterpart_name.split(" · ")[0]}`
-                          : m.label}
-                      </p>
-                      <p className="truncate text-xs text-muted">
-                        {[t.type === "purchase" || t.counterpart_name ? m.label : null, t.counterpart_name?.split(" · ")[1] ?? null, t.type !== "purchase" ? t.note : null, time(t.created_at)].filter(Boolean).join(" · ")}
+                      <p className="truncate text-sm font-bold">{r.items.length} {r.items[0].type === "transfer_in" ? "envois reçus de" : "envois à"} {who(r.items[0])}</p>
+                      <p className="flex items-center gap-1 truncate text-xs text-muted">
+                        {time(r.items[r.items.length - 1].created_at)} – {time(r.items[0].created_at)}
+                        <ChevronDown className={clsx("size-3.5 transition", open[r.key] && "rotate-180")} />
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className={clsx("text-sm font-extrabold", t.amount > 0 ? "text-[#15803d]" : "text-ink")}>{signedFcfa(t.amount)}</p>
-                      <p className="text-[11px] text-off">Solde {fcfa(t.balance_after)}</p>
-                    </div>
-                  </div>
-                );
-              })}
+                    <Amount amount={r.items.reduce((n, t) => n + t.amount, 0)} after={r.items[0].balance_after} />
+                  </button>
+                  {open[r.key] && <div className="animate-rise border-t border-dashed border-line bg-canvas/60">{r.items.map((t) => <TxRow key={t.id} t={t} />)}</div>}
+                </div>
+              ))}
             </div>
           </section>
         ))}
       </div>
     </main>
+  );
+}
+
+function Icon({ t }: { t: Tx }) {
+  const m = META[t.type] ?? META.bonus;
+  const I = m.icon;
+  return <span className={clsx("grid size-10 shrink-0 place-items-center rounded-xl", m.bg)}><I className="size-[18px]" /></span>;
+}
+
+function Amount({ amount, after }: { amount: number; after: number }) {
+  return (
+    <div className="shrink-0 text-right">
+      <p className={clsx("text-sm font-extrabold", amount > 0 ? "text-[#15803d]" : "text-ink")}>{signedFcfa(amount)}</p>
+      <p className="text-[11px] text-muted">Solde {fcfa(after)}</p>
+    </div>
+  );
+}
+
+function TxRow({ t }: { t: Tx }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <Icon t={t} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold">{title(t)}</p>
+        <p className="truncate text-xs text-muted">{detail(t)}</p>
+      </div>
+      <Amount amount={t.amount} after={t.balance_after} />
+    </div>
   );
 }
