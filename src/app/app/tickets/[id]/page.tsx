@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
@@ -134,6 +135,11 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
           </div>
           {t.gift_from && <p className="mx-auto mt-2 w-fit rounded-full bg-lime-soft px-3 py-1 text-sm font-bold text-lime-deep">🎁 Offert par {t.gift_from}</p>}
           {st === "used" && t.dish && <p className="mt-2 text-sm font-bold text-ink-2">Servi : {t.dish.name}</p>}
+          {st === "used" && t.dish && (
+            <Link href={`/app/avis/${t.id}`} className="mx-auto mt-3 flex w-fit items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-bold text-white">
+              <Star className="size-4 fill-warn text-warn" />Mon avis sur ce plat
+            </Link>
+          )}
           {t.extras.length > 0 && (
             <div className="mt-3 flex flex-wrap justify-center gap-1.5">
               {t.extras.map((e) => <span key={e.id} className="rounded-full bg-canvas px-2.5 py-1 text-xs font-bold">+ {e.name}</span>)}
@@ -193,35 +199,14 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
 }
 
 function ScannedOverlay({ ticket, onClose }: { ticket: Ticket; onClose: () => void }) {
-  const toast = useToast();
-  const [stars, setStars] = useState(0);
-  const [sent, setSent] = useState(false);
-  async function rate(n: number) {
-    setStars(n);
-    const r = await rpc("rate_ticket", { p_ticket_id: ticket.id, p_stars: n });
-    if (r.ok) { setSent(true); toast("ok", "Merci pour votre avis !"); setTimeout(onClose, 900); }
-    else toast("err", r.message);
-  }
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-ok px-8 text-center text-white">
       <span className="animate-pop grid size-28 place-items-center rounded-full bg-white text-ok"><Check className="size-16" strokeWidth={3} /></span>
       <h2 className="mt-6 text-3xl font-extrabold">Bon appétit !</h2>
       <p className="mt-2 text-lg font-semibold opacity-90">{ticket.dish ? ticket.dish.name : `Ticket ${SERVICE_LABEL[ticket.service]} validé`}</p>
-      {ticket.dish ? (
-        <div className="mt-10 rounded-3xl bg-white/15 p-5">
-          <p className="font-bold">Comment était votre {ticket.dish.name.split(" ")[0].toLowerCase()} ?</p>
-          <div className="mt-3 flex justify-center gap-2">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} onClick={() => !sent && rate(n)} aria-label={`${n} étoiles`} className="p-1 active:scale-90">
-                <Star className={clsx("size-9", n <= stars ? "fill-white text-white" : "text-white/60")} />
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <p className="mt-8 text-sm font-semibold opacity-80">L&apos;agent enregistre votre plat…</p>
-      )}
-      <button onClick={onClose} className="mt-8 text-sm font-bold underline underline-offset-4 opacity-90">Plus tard</button>
+      {!ticket.dish && <p className="mt-8 text-sm font-semibold opacity-80">L&apos;agent enregistre votre plat…</p>}
+      <p className="mt-8 rounded-2xl bg-white/15 px-4 py-3 text-sm font-semibold">On te demandera ton avis dans 30 min, après le repas.</p>
+      <button onClick={onClose} className="mt-8 text-sm font-bold underline underline-offset-4 opacity-90">Fermer</button>
     </div>
   );
 }

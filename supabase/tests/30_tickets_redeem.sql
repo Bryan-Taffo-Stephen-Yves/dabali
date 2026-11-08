@@ -59,7 +59,7 @@ select tests.eq((select dish_id from public.tickets where id = :'t1'), (select d
 select tests.eq((select served_qty from public.menu_items where id = tests.item('attieke_lunch')), 1, 'portions servies : 1');
 select tests.eq((select stock_qty from public.ingredients where name = 'Poisson'), 9.8::numeric(12,3), 'stock : sortie automatique 0,2 kg');
 select tests.ok(exists (select 1 from public.notifications where user_id = tests.uid('chef') and type = 'stock_low'), 'chef alerté stock bas');
-select tests.ok(exists (select 1 from public.notifications where user_id = tests.uid('alice') and type = 'rate_dish'), 'demande d''avis après le service');
+select tests.ok(not exists (select 1 from public.notifications where user_id = tests.uid('alice') and type = 'rate_dish'), 'pas de demande d''avis pendant le repas');
 
 -- Dernière portion : planned_qty = 2 ; la 2e portion part, la 3e est refusée
 select tests.as_service();
