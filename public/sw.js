@@ -3,7 +3,7 @@
 // - pages de l'appli : réseau d'abord, repli sur la dernière version en cache
 // - fichiers statiques Next (/_next/static) : cache d'abord (noms versionnés)
 // - API Supabase : jamais mise en cache ici (les jetons QR sont gardés par l'appli dans localStorage)
-const VERSION = "dabali-v1";
+const VERSION = "dabali-v1-img";
 const PAGES = ["/app", "/app/tickets", "/app/menu", "/app/profil"];
 
 self.addEventListener("install", (e) => {
@@ -28,6 +28,17 @@ self.addEventListener("fetch", (e) => {
         const copy = res.clone();
         caches.open(VERSION).then((c) => c.put(req, copy));
         return res;
+      })),
+    );
+    return;
+  }
+
+  // Photos des plats : affichées tout de suite depuis le téléphone, mises à jour en arrière-plan
+  if (url.pathname.startsWith("/dishes/")) {
+    e.respondWith(
+      caches.open(VERSION).then((c) => c.match(req).then((hit) => {
+        const update = fetch(req).then((res) => { if (res.ok) c.put(req, res.clone()); return res; }).catch(() => hit);
+        return hit || update;
       })),
     );
     return;

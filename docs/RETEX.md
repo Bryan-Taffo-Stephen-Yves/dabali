@@ -20,6 +20,8 @@ perdre du temps et ce qu'il faut préparer **avant** le hackathon. À compléter
    et des services (petit-déjeuner, snack) se sont retrouvés sans image.
    → **Toutes les photos sont maintenant dans le dépôt** (`public/dishes/*.jpg`) et le seed les référence.
    Wikimedia bloque vite les téléchargements en série (erreur 429) : ne pas compter dessus le jour J.
+   **Toujours optimiser** une nouvelle photo : `python scripts/optimize-photos.py public/dishes/xxx.jpg`
+   (4:3, 720×540, < 100 Ko). Les 17 photos sont passées de 2,3 Mo à 0,9 Mo.
    Pour un nouveau plat : ajouter la photo dans `public/dishes/` **en même temps** que le plat.
 2. **Hébergement Netlify** : le déploiement automatique depuis l'outil a été refusé ; il a fallu passer par l'interface.
    → Préparer le site Netlify à l'avance (lié au dépôt GitHub, variables d'environnement remplies).

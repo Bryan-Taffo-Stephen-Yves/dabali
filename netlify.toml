@@ -12,3 +12,9 @@
   [headers.values]
     Cache-Control = "no-cache"
     Service-Worker-Allowed = "/"
+
+# Photos des plats : mises en cache 7 jours par le navigateur et le CDN, rafraîchies en arrière-plan ensuite
+[[headers]]
+  for = "/dishes/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, stale-while-revalidate=86400"

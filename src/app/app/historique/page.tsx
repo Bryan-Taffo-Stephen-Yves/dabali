@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/app/page-header";
 import { fcfa, signedFcfa, relativeDay, time, todayISO } from "@/lib/format";
 
-type Tx = { id: string; type: string; amount: number; balance_after: number; note: string | null; created_at: string };
+type Tx = { id: string; type: string; amount: number; balance_after: number; note: string | null; created_at: string; counterpart_name: string | null };
 
 const META: Record<string, { label: string; icon: typeof Gift; bg: string }> = {
   recharge: { label: "Recharge Mobile Money", icon: Smartphone, bg: "bg-lime-soft text-lime-deep" },
@@ -32,7 +32,7 @@ export default function HistoryPage() {
     (async () => {
       const sb = supabase();
       const { data: { user } } = await sb.auth.getUser();
-      const { data } = await sb.from("transactions").select("id, type, amount, balance_after, note, created_at")
+      const { data } = await sb.from("transactions").select("id, type, amount, balance_after, note, created_at, counterpart_name")
         .eq("user_id", user!.id).order("created_at", { ascending: false }).limit(150);
       setTxs(data ?? []);
     })();
@@ -78,8 +78,15 @@ export default function HistoryPage() {
                   <div key={t.id} className="flex items-center gap-3 px-4 py-3">
                     <span className={clsx("grid size-10 shrink-0 place-items-center rounded-xl", m.bg)}><I className="size-[18px]" /></span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold">{t.type === "purchase" && t.note ? t.note : m.label}</p>
-                      <p className="truncate text-xs text-muted">{t.type === "purchase" ? m.label : t.note ?? ""} · {time(t.created_at)}</p>
+                      <p className="truncate text-sm font-bold">
+                        {t.type === "purchase" && t.note ? t.note
+                          : t.counterpart_name && t.type === "transfer_in" ? `Reçu de ${t.counterpart_name}`
+                          : t.counterpart_name && t.type === "transfer_out" ? `Envoyé à ${t.counterpart_name}`
+                          : m.label}
+                      </p>
+                      <p className="truncate text-xs text-muted">
+                        {[t.type === "purchase" || t.counterpart_name ? m.label : null, t.type !== "purchase" ? t.note : null, time(t.created_at)].filter(Boolean).join(" · ")}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className={clsx("text-sm font-extrabold", t.amount > 0 ? "text-[#15803d]" : "text-ink")}>{signedFcfa(t.amount)}</p>

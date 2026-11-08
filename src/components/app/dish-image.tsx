@@ -20,7 +20,7 @@ export function DishImage({ name, src, className, rounded = "rounded-2xl" }: {
   const [failed, setFailed] = useState<string | null>(null);
   if (src && failed !== src) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={name} loading="lazy" onError={() => setFailed(src)} className={clsx("bg-canvas object-cover", rounded, className)} />;
+    return <img src={src} alt={name} loading="lazy" decoding="async" onError={() => setFailed(src)} className={clsx("bg-canvas object-cover", rounded, className)} />;
   }
   const [a, b] = PALETTES[hash(name) % PALETTES.length];
   const initials = name.split(/\s+/).filter((w) => w.length > 2).slice(0, 2).map((w) => w[0]).join("").toUpperCase();

@@ -43,6 +43,8 @@ select tests.code(public.transfer_funds(tests.uid('bob'), 100, '2580'), 'DAILY_L
 
 select tests.login('bob');
 select tests.eq((select balance from public.wallets where user_id = auth.uid()), 100000, 'bob a reçu 100 000');
+select tests.ok((select counterpart_name like 'Alice Kouassi%' from public.transactions where user_id = auth.uid() and type = 'transfer_in' limit 1),
+                'historique de bob : nom de l''expéditrice');
 select tests.eq((select count(*) from public.transactions where type = 'transfer_in')::int, 2, 'bob : 2 transactions transfer_in');
 select tests.ok(exists (select 1 from public.notifications where type = 'transfer_received'), 'bob notifié');
 select tests.code(public.transfer_funds(tests.uid('alice'), 200000, '1357'), 'AMOUNT_TOO_HIGH', '(montant trop élevé avant contrôle du solde)');
