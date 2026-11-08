@@ -60,7 +60,7 @@ export default function OverviewPage() {
       </PageTitle>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi tone="dark" icon={Banknote} label="Encaissé · repas servis" value={o ? fcfa(o.revenue) : "…"} hint={o ? `Ventes ${fcfa(o.sales)} · ${fcfa(o.held)} en attente de scan` : undefined} />
+        <Kpi tone="dark" icon={Banknote} label="Encaissé · repas servis" value={o ? fcfa(o.revenue) : "…"} hint={o ? `${o.refunded_expired ? `${fcfa(o.refunded_expired)} remboursés (non utilisés) · ` : ""}${fcfa(o.held)} en attente de scan` : undefined} />
         <Kpi tone="lime" icon={ShoppingBasket} label="Recharges encaissées" value={o ? fcfa(o.recharges) : "…"} hint={o ? `dont ${fcfa(o.recharges_cash)} en espèces` : undefined} />
         <Kpi icon={Ticket} label="Repas servis aujourd'hui" value={o ? String(o.served) : "…"} hint={o ? `${o.sold} tickets vendus · ${o.outstanding} en circulation` : undefined} />
         <Kpi icon={Users} label="Occupation" value={occ?.status === "open" ? `${Math.round(occ.rate)} %` : "Fermé"}

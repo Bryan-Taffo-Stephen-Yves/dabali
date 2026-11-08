@@ -57,7 +57,7 @@ function Menu() {
   const ended = serviceEnded(day, service, services);
 
   return (
-    <main className="pb-24">
+    <main className="pb-[calc(10.5rem+env(safe-area-inset-bottom))]">
       <header className="sticky top-0 z-30 bg-canvas/95 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur">
         <h1 className="py-1 text-[26px] font-extrabold tracking-tight">Au menu</h1>
 

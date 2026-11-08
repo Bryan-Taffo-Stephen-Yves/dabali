@@ -2,7 +2,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { QrCode, Wallet, UtensilsCrossed } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -45,15 +44,16 @@ export default function ConnexionPage() {
           Mangez sans <span className="relative whitespace-nowrap"><span className="relative z-10">attendre.</span><span className="absolute inset-x-0 bottom-1 -z-0 h-3 rounded bg-lime" /></span>
         </h1>
         <p className="mt-3 text-[15px] text-muted">Rechargez, réservez votre plat, présentez votre QR. C&apos;est tout.</p>
-        <div className="mt-6 flex gap-2">
-          {[[Wallet, "Solde prépayé"], [UtensilsCrossed, "Menu illustré"], [QrCode, "Ticket QR"]].map(([Icon, t]) => {
-            const I = Icon as typeof Wallet;
-            return (
-              <span key={t as string} className="flex flex-1 flex-col items-center gap-1.5 rounded-2xl bg-card py-3 text-[11px] font-bold text-ink-2 shadow-[var(--shadow-card)]">
-                <I className="size-5" /> {t as string}
-              </span>
-            );
-          })}
+        {/* Simple illustration (pas des boutons) : quelques plats + les 3 étapes */}
+        <div className="mt-6 flex items-center gap-3">
+          <div className="flex -space-x-3">
+            {["attieke-poisson", "alloco-poulet", "garba", "poulet-frites"].map((d, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={d} src={`/dishes/${d}.jpg`} alt="" style={{ animationDelay: `${i * 70}ms` }}
+                className="animate-pop size-12 rounded-full object-cover ring-[3px] ring-canvas" />
+            ))}
+          </div>
+          <p className="text-[13px] font-semibold leading-snug text-ink-2">Solde prépayé · menu en photos<br />ticket QR, même hors ligne</p>
         </div>
       </section>
 

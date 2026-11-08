@@ -6,6 +6,7 @@ import { Bell, Plus, Send, UtensilsCrossed, Sparkles, ChevronRight } from "lucid
 import { useAppData } from "@/components/app/app-data";
 import { OccupancyCard } from "@/components/app/occupancy-card";
 import { TicketRow } from "@/components/app/ticket-row";
+import { NextMenu } from "@/components/app/next-menu";
 import { cachedTickets, displayStatus, fetchMyTickets, syncTokens } from "@/lib/tickets";
 import { fcfa, firstName, dayLong, todayISO } from "@/lib/format";
 import type { Ticket } from "@/lib/types";
@@ -20,8 +21,15 @@ export default function HomePage() {
   }, []);
 
   const valid = (tickets?.filter((t) => displayStatus(t) === "valid") ?? []).sort((a, b) => a.valid_until.localeCompare(b.valid_until));
-  const others = tickets?.filter((t) => displayStatus(t) !== "valid").slice(0, 4) ?? [];
-  const rewardReady = (profile?.points ?? 0) >= 10;
+  // Plat préféré : le plus servi parmi ses derniers repas
+  const favorite = (() => {
+    const n = new Map<string, number>();
+    tickets?.forEach((t) => t.status === "used" && t.dish?.name && n.set(t.dish.name, (n.get(t.dish.name) ?? 0) + 1));
+    const best = [...n.entries()].sort((a, b) => b[1] - a[1])[0];
+    return best && best[1] >= 2 ? best[0] : null;
+  })();
+  const points = profile?.points ?? 0;
+  const rewardReady = points >= 10;
 
   return (
     <main className="px-4 pt-[max(1rem,env(safe-area-inset-top))]">
@@ -68,42 +76,43 @@ export default function HomePage() {
       <Link href="/app/profil#fidelite" className="mt-3 flex items-center gap-3 rounded-[22px] bg-card p-3.5 shadow-[var(--shadow-card)]">
         <span className="grid size-10 place-items-center rounded-xl bg-lime-soft"><Sparkles className="size-5 text-lime-deep" /></span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold">{rewardReady ? "Petit-déjeuner offert disponible 🎉" : `${profile?.points ?? 0} / 10 points`}</p>
+          <p className="text-sm font-bold">{rewardReady ? `Petit-déjeuner offert disponible${points >= 20 ? ` × ${Math.floor(points / 10)}` : ""} 🎉` : `${points} / 10 points`}</p>
           <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-canvas">
-            <div className="h-full rounded-full bg-lime-deep transition-all" style={{ width: `${Math.min(100, (profile?.points ?? 0) * 10)}%` }} />
+            <div className="h-full rounded-full bg-lime-deep transition-all duration-700" style={{ width: `${rewardReady ? 100 : points * 10}%` }} />
           </div>
+          {rewardReady && points % 10 > 0 && <p className="mt-1 text-xs font-semibold text-muted">+ {points % 10} / 10 vers le suivant</p>}
         </div>
         <ChevronRight className="size-5 text-off" />
       </Link>
 
-      <section className="mt-6">
-        <h2 className="mb-3 text-[17px] font-extrabold">Affluence</h2>
-        <OccupancyCard />
-      </section>
-
+      {/* Tickets valides seulement : les expirés et utilisés restent dans « Mes tickets » */}
       <section className="mt-6">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[17px] font-extrabold">Mes tickets</h2>
           <Link href="/app/tickets" className="text-sm font-bold text-muted">Tout voir</Link>
         </div>
         {tickets === null ? (
-          <div className="space-y-3">{[0, 1].map((i) => <div key={i} className="h-[88px] animate-pulse rounded-[20px] bg-card" />)}</div>
-        ) : valid.length === 0 && others.length === 0 ? (
+          <div className="h-[88px] animate-pulse rounded-[20px] bg-card" />
+        ) : valid.length === 0 ? (
           <EmptyTickets />
         ) : (
-          <div className="space-y-3">
-            {valid.length === 0 && <EmptyTickets compact />}
-            {[...valid, ...others].map((t) => <TicketRow key={t.id} t={t} />)}
-          </div>
+          <div className="space-y-3">{valid.map((t) => <TicketRow key={t.id} t={t} />)}</div>
         )}
+      </section>
+
+      <div className="mt-6"><NextMenu favorite={favorite} /></div>
+
+      <section className="mt-6">
+        <h2 className="mb-3 text-[17px] font-extrabold">Affluence</h2>
+        <OccupancyCard />
       </section>
     </main>
   );
 }
 
-function EmptyTickets({ compact }: { compact?: boolean }) {
+function EmptyTickets() {
   return (
-    <div className={`flex items-center gap-3 rounded-[20px] border-2 border-dashed border-line p-4 ${compact ? "" : "py-6"}`}>
+    <div className="flex items-center gap-3 rounded-[20px] border-2 border-dashed border-line p-4">
       <span className="grid size-12 place-items-center rounded-2xl bg-card"><UtensilsCrossed className="size-5 text-muted" /></span>
       <div className="flex-1">
         <p className="font-bold">Aucun ticket valide</p>

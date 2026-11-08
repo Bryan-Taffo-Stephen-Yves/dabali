@@ -89,13 +89,16 @@ export default function ProfilePage() {
         <section id="fidelite" className="mt-4 rounded-[24px] bg-lime p-5">
           <div className="flex items-center gap-2"><Sparkles className="size-5" /><h3 className="font-extrabold">Fidélité</h3></div>
           <p className="mt-1 text-sm font-semibold text-ink/70">1 repas servi = 1 point · 10 points = 1 petit-déjeuner offert</p>
-          <div className="mt-4 grid grid-cols-10 gap-1.5">
+          <p className="mt-3 text-[34px] font-extrabold leading-none">{points} <span className="text-base font-bold text-ink/60">point{points > 1 ? "s" : ""}</span></p>
+          <div className="mt-3 grid grid-cols-10 gap-1.5">
             {Array.from({ length: 10 }, (_, i) => (
-              <span key={i} className={clsx("aspect-square rounded-full", i < Math.min(points, 10) ? "bg-ink" : "bg-white/60")} />
+              <span key={i} style={{ animationDelay: `${i * 40}ms` }} className={clsx("animate-pop aspect-square rounded-full", i < points % 10 || (points > 0 && points % 10 === 0) ? "bg-ink" : "bg-white/60")} />
             ))}
           </div>
           <p className="mt-3 text-sm font-bold">
-            {points >= 10 ? <span className="flex items-center gap-1.5"><Gift className="size-4" /> Petit-déjeuner offert : à utiliser dans « Acheter »</span> : `Encore ${10 - points} repas avant votre petit-déjeuner offert`}
+            {points >= 10
+              ? <span className="flex items-center gap-1.5"><Gift className="size-4 shrink-0" />{Math.floor(points / 10)} petit-déjeuner{points >= 20 ? "s" : ""} offert{points >= 20 ? "s" : ""} à utiliser dans « Acheter »{points % 10 ? ` · ${points % 10}/10 vers le suivant` : ""}</span>
+              : `Encore ${10 - points} repas avant votre petit-déjeuner offert`}
           </p>
         </section>
 

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
   LayoutDashboard, Wallet, CalendarDays, UtensilsCrossed, TrendingUp, Boxes, BarChart3, Trash2, Star,
-  Users, Settings, LogOut, ScanLine, Smartphone, UserCog, ShoppingCart, ShieldCheck,
+  Users, Settings, LogOut, ScanLine, Smartphone, UserCog, ShoppingCart, ShieldCheck, MoreHorizontal,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/logo";
@@ -40,6 +40,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const [me, setMe] = useState<Profile | null>(null);
+  const [more, setMore] = useState(false);
+  useEffect(() => setMore(false), [path]);
 
   useEffect(() => {
     supabase().auth.getUser().then(async ({ data: { user } }) => {
@@ -74,22 +76,32 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-          <div className="space-y-1 border-t border-line pt-3">
-            {me && ["agent", "admin"].includes(me.role) && (
-              <Link href="/scan" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><ScanLine className="size-4" />Scanner</Link>
+          {/* Bas de la barre : un seul bloc profil, le reste dans un menu « ⋯ » (la navigation garde toute la hauteur) */}
+          <div className="relative border-t border-line pt-3">
+            {more && (
+              <>
+                <button aria-label="Fermer le menu" className="fixed inset-0 z-10 cursor-default" onClick={() => setMore(false)} />
+                <div className="animate-rise absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-20 space-y-0.5 rounded-2xl border border-line bg-card p-2 shadow-[var(--shadow-float)]">
+                  {me && ["agent", "admin"].includes(me.role) && (
+                    <Link href="/scan" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><ScanLine className="size-4" />Scanner</Link>
+                  )}
+                  <Link href="/app" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><Smartphone className="size-4" />Appli client</Link>
+                  <InstallApp variant="compact" />
+                  <PushToggle compact />
+                  <Link href="/double-authentification?next=/admin" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><ShieldCheck className="size-4" />Double authentification</Link>
+                  <button onClick={logout} className="flex h-9 w-full items-center gap-3 rounded-xl px-3 text-sm font-bold text-err hover:bg-err-soft"><LogOut className="size-4" />Déconnexion</button>
+                </div>
+              </>
             )}
-            <Link href="/app" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><Smartphone className="size-4" />Appli client</Link>
-            <InstallApp variant="compact" />
-            <PushToggle compact />
-            <Link href="/double-authentification?next=/admin" className="flex h-9 items-center gap-3 rounded-xl px-3 text-sm font-bold text-ink-2 hover:bg-canvas"><ShieldCheck className="size-4" />Double authentification</Link>
-            <div className="flex items-center gap-3 rounded-xl bg-canvas p-3">
-              <span className="grid size-9 place-items-center rounded-full bg-lime text-sm font-extrabold">{me?.full_name?.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold">{me?.full_name}</p>
-                <p className="text-xs text-muted">{me ? ROLE_LABEL[me.role] : ""}</p>
-              </div>
-              <button onClick={logout} aria-label="Déconnexion" className="text-muted hover:text-err"><LogOut className="size-4" /></button>
-            </div>
+            <button onClick={() => setMore((v) => !v)} aria-expanded={more} aria-label="Menu du compte"
+              className="flex w-full items-center gap-3 rounded-xl bg-canvas p-3 text-left transition hover:bg-line/60">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-lime text-sm font-extrabold">{me?.full_name?.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold">{me?.full_name}</span>
+                <span className="block text-xs text-muted">{me ? ROLE_LABEL[me.role] : ""}</span>
+              </span>
+              <MoreHorizontal className="size-5 text-muted" />
+            </button>
           </div>
         </aside>
 
