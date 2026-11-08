@@ -13,7 +13,7 @@ import { todayISO, SERVICE_LABEL } from "@/lib/format";
 import { SERVICES, type Extra, type ServiceKind } from "@/lib/types";
 
 type Dish = { menu_item_id: string; name: string; photo_url: string | null; available: boolean; left: number | null };
-type Scan = { ticket_id: string; client: string; ticket: string; extras: Extra[]; dishes: Dish[] };
+type Scan = { ticket_id: string; client: string; ticket: string; extras: Extra[]; dishes: Dish[]; batch_size?: number; remaining?: number; gift_from?: string | null; is_reward?: boolean };
 type Fail = { code: string; message: string };
 type Counters = { served: number; outstanding: number };
 
@@ -202,9 +202,27 @@ export default function ScanPage() {
               <p className="text-lg font-bold opacity-90">Ticket {scan.ticket} valide</p>
             </div>
           </div>
-          {scan.extras?.length > 0 && (
-            <p className="mx-5 mb-3 rounded-2xl bg-white/20 px-4 py-2.5 text-lg font-extrabold">+ {scan.extras.map((e) => e.name).join(" · ")}</p>
+          {/* Supplément : à servir en plus du plat (ou rien) */}
+          {scan.extras?.length > 0 ? (
+            <div className="mx-5 mb-3 rounded-2xl bg-white px-4 py-3 text-ink shadow-lg">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-[#15803d]">Supplément payé · à servir</p>
+              {scan.extras.map((e) => (
+                <p key={e.id} className="text-xl font-extrabold">+ {e.kind === "starter" ? "Entrée" : e.kind === "dessert" ? "Dessert" : "Extra"} : {e.name}</p>
+              ))}
+            </div>
+          ) : (
+            <p className="mx-5 mb-3 rounded-2xl bg-white/15 px-4 py-2.5 text-base font-bold">Sans supplément : plat seul</p>
           )}
+          <div className="mx-5 mb-3 flex flex-wrap gap-2 text-sm font-bold">
+            {scan.batch_size != null && scan.batch_size > 1 && <span className="rounded-full bg-white/20 px-3 py-1">Acheté avec {scan.batch_size - 1} autre{scan.batch_size > 2 ? "s" : ""} ticket{scan.batch_size > 2 ? "s" : ""}</span>}
+            {scan.remaining != null && (
+              <span className="rounded-full bg-white/20 px-3 py-1">
+                {scan.remaining === 0 ? `Plus aucun ticket ${scan.ticket}` : `Il lui reste ${scan.remaining} ticket${scan.remaining > 1 ? "s" : ""} ${scan.ticket}`}
+              </span>
+            )}
+            {scan.gift_from && <span className="rounded-full bg-white/20 px-3 py-1">🎁 Offert par {scan.gift_from}</span>}
+            {scan.is_reward && <span className="rounded-full bg-white/20 px-3 py-1">⭐ Ticket fidélité</span>}
+          </div>
           <p className="px-5 pb-2 text-sm font-bold uppercase tracking-wider opacity-80">Plat servi</p>
           <div className="grid flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto px-5 pb-4">
             {scan.dishes.map((d) => (

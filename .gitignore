@@ -12,3 +12,4 @@ vision/zones.json
 *.log
 .DS_Store
 .netlify
+scripts/install.env

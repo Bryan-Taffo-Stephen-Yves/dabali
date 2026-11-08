@@ -18,7 +18,8 @@ perdre du temps et ce qu'il faut préparer **avant** le hackathon. À compléter
 
 1. **Photos des plats** : chercher des photos au fil de l'eau (Wikimedia, puis Pexels…) a pris beaucoup de temps,
    et des services (petit-déjeuner, snack) se sont retrouvés sans image.
-   → **Les photos sont maintenant dans le dépôt** (`public/dishes/*.jpg`, licence Pexels) et le seed les référence.
+   → **Toutes les photos sont maintenant dans le dépôt** (`public/dishes/*.jpg`) et le seed les référence.
+   Wikimedia bloque vite les téléchargements en série (erreur 429) : ne pas compter dessus le jour J.
    Pour un nouveau plat : ajouter la photo dans `public/dishes/` **en même temps** que le plat.
 2. **Hébergement Netlify** : le déploiement automatique depuis l'outil a été refusé ; il a fallu passer par l'interface.
    → Préparer le site Netlify à l'avance (lié au dépôt GitHub, variables d'environnement remplies).
@@ -35,14 +36,18 @@ perdre du temps et ce qu'il faut préparer **avant** le hackathon. À compléter
 
 ## 3. Ordre de construction le jour J (cible : 2-3 h)
 
-1. Créer le projet Supabase + le site Netlify + le dépôt (10 min, préparés la veille si possible).
-2. Appliquer **toutes les migrations** du dossier `supabase/migrations/` dans l'ordre (10 min).
-3. Charger `supabase/seed.sql` (comptes de démo, menus, historique, photos) (5 min).
-4. Déployer les Edge Functions : `ticket-token`, `redeem-ticket`, `forecast-assistant`, `shopping-organize` (10 min).
-5. Mettre la clé Anthropic dans Vault : `select vault.create_secret('<clé>', 'anthropic_api_key');` (2 min).
-6. Pousser le front, vérifier le build Netlify (10 min).
-7. Lancer `supabase/tests/run.sh` et `scripts/e2e-deployed.js` (10 min).
-8. Répéter la démo (section 4).
+1. Créer le projet Supabase, le site Netlify (lié au dépôt GitHub) et le jeton Supabase (10 min).
+2. Remplir `scripts/install.env` (copie de `scripts/install.env.example`) puis **une seule commande** :
+   ```bash
+   bash scripts/install.sh
+   ```
+   Elle applique les migrations dans l'ordre (une seule fois chacune), charge les données de démo (comptes,
+   plats **avec photos**, menus, historique), range la clé Anthropic dans Vault, déploie les 4 Edge Functions
+   et vérifie que les soldes sont justes. Relançable sans risque.
+   Test sans Supabase : `bash scripts/install.sh --local` (Postgres local).
+3. Les 3 réglages affichés à la fin du script (Confirm email, Site URL, variables Netlify) (5 min).
+4. Lancer `supabase/tests/run.sh` et `scripts/e2e-deployed.js` (10 min).
+5. Répéter la démo (section 4).
 
 ## 4. Le scénario de démo (à répéter)
 
@@ -55,6 +60,6 @@ perdre du temps et ce qu'il faut préparer **avant** le hackathon. À compléter
 
 ## 5. Ce qui manque encore (à faire avant le jour J)
 
-- [ ] Script unique « tout installer » (migrations + seed + fonctions) au lieu des étapes manuelles.
+- [x] Script unique « tout installer » : `scripts/install.sh`.
 - [ ] Désactiver « Confirm email » et régler la Site URL dans Supabase.
 - [ ] Changer la clé Anthropic (elle a été collée dans une conversation).

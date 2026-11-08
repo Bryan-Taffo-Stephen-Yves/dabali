@@ -19,6 +19,15 @@ et suivi d'affluence par vision (YOLO). Projet du **Hackathon Restauration Vatel
 | **Supabase** | Schéma, RLS partout, RPC transactionnelles, Edge Functions QR signés HMAC, crons, Realtime |
 | **`vision/`** | YOLO11n + OpenCV, zones-tables, lissage 30 s / 60 s, envoi de chiffres uniquement |
 
+## Installer un nouveau projet en une commande
+
+```bash
+cp scripts/install.env.example scripts/install.env   # remplir : base, projet, jeton, clé Anthropic (facultatif)
+bash scripts/install.sh
+```
+
+Migrations, données de démo, clé IA dans Vault, Edge Functions et vérifications. Détails : `docs/RETEX.md`.
+
 ## Comptes de démo
 
 Mot de passe commun : **`Dabali2026!`** — boutons « Comptes de démo » sur l'écran de connexion.

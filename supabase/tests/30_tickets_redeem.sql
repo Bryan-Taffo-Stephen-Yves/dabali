@@ -36,6 +36,9 @@ select tests.eq(:'r1'::jsonb ->> 'client', 'Alice Kouassi', 'scan : nom du clien
 select tests.eq(:'r1'::jsonb ->> 'ticket', 'Déjeuner', 'scan : type de ticket');
 select tests.eq(jsonb_array_length(:'r1'::jsonb -> 'extras'), 1, 'scan : supplément affiché (dessert)');
 select tests.eq(jsonb_array_length(:'r1'::jsonb -> 'dishes'), 2, 'scan : plats du déjeuner proposés à l''agent');
+select tests.eq((:'r1'::jsonb ->> 'remaining')::int, 2, 'scan : il reste 2 tickets Déjeuner au client');
+select tests.ok((:'r1'::jsonb ->> 'batch_size')::int >= 1, 'scan : taille de l''achat indiquée');
+select tests.ok(:'r1'::jsonb -> 'gift_from' = 'null'::jsonb, 'scan : ticket non offert');
 select tests.code(public.redeem_ticket(:'t1', :'n1', tests.uid('agent2'), :d, 'lunch'), 'ALREADY_USED', '2e scan refusé');
 select tests.ok(public.redeem_ticket(:'t1', :'n1', tests.uid('agent2'), :d, 'lunch') ->> 'message' like '%Agent Yao%', '2e scan : agent du 1er scan indiqué');
 -- un ticket vaut pour n'importe quel déjeuner pendant 48 h (ici : aujourd'hui)
