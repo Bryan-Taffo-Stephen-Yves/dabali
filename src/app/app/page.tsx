@@ -1,4 +1,5 @@
 "use client";
+import { InstallApp } from "@/components/install-app";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, Plus, Send, UtensilsCrossed, Sparkles, ChevronRight } from "lucide-react";
@@ -60,6 +61,8 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      <div className="mt-3"><InstallApp /></div>
 
       {/* Fidélité */}
       <Link href="/app/profil#fidelite" className="mt-3 flex items-center gap-3 rounded-[22px] bg-card p-3.5 shadow-[var(--shadow-card)]">
