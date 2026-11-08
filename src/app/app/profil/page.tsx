@@ -4,7 +4,7 @@ import { PushToggle } from "@/components/push-toggle";
 import { InstallApp } from "@/components/install-app";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { LogOut, KeyRound, Bell, Sparkles, Gift, ChevronRight, LayoutDashboard, ScanLine, PhoneOff, Smartphone, QrCode } from "lucide-react";
+import { LogOut, KeyRound, Bell, Sparkles, Gift, ChevronRight, LayoutDashboard, ScanLine, PhoneOff, Smartphone } from "lucide-react";
 import { syncTokens } from "@/lib/tickets";
 import { rpc, supabase } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/app/page-header";
@@ -40,7 +40,6 @@ export default function ProfilePage() {
 
   // Téléphone perdu ou volé : nouveaux QR, autres appareils déconnectés (celui-ci reste connecté)
   const [lostOpen, setLostOpen] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
   const [lostBusy, setLostBusy] = useState(false);
   async function secureDevices() {
     setLostBusy(true);
@@ -74,20 +73,18 @@ export default function ProfilePage() {
     <main>
       <PageHeader title="Profil" back={false} />
       <div className="px-4">
-        {/* En-tête compact : le QR de transfert s'ouvre à la demande */}
-        <section className="flex items-center gap-4 rounded-[28px] bg-card p-4 shadow-[var(--shadow-card)]">
-          <span className="grid size-14 shrink-0 place-items-center rounded-full bg-lime text-xl font-extrabold">
+        {/* QR de transfert visible dès l'ouverture du profil (rien à toucher pour le montrer) */}
+        <section className="flex flex-col items-center rounded-[28px] bg-card p-6 text-center shadow-[var(--shadow-card)]">
+          <span className="grid size-16 place-items-center rounded-full bg-lime text-2xl font-extrabold">
             {profile?.full_name?.split(" ").map((w) => w[0]).slice(0, 2).join("")}
           </span>
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate text-lg font-extrabold">{profile?.full_name}</h2>
-            <p className="text-sm text-muted">{profile?.phone}</p>
-            <p className="mt-1 w-fit rounded-full bg-ink px-2.5 py-0.5 text-sm font-extrabold tracking-wider text-lime">{profile?.short_code}</p>
+          <h2 className="mt-3 text-xl font-extrabold">{profile?.full_name}</h2>
+          <p className="text-sm text-muted">{profile?.phone}</p>
+          <div className="mt-5 w-44 rounded-2xl bg-white p-2 ring-1 ring-line">
+            {profile && <Qr value={`DABALI:${profile.short_code}`} size={180} />}
           </div>
-          <button onClick={() => setQrOpen(true)} aria-label="Mon QR de transfert"
-            className="flex shrink-0 flex-col items-center gap-1 rounded-2xl bg-canvas px-3 py-2.5 text-[11px] font-bold active:scale-95">
-            <QrCode className="size-6" />Mon QR
-          </button>
+          <p className="mt-3 rounded-full bg-ink px-4 py-1.5 text-lg font-extrabold tracking-wider text-lime">{profile?.short_code}</p>
+          <p className="mt-2 max-w-[240px] text-xs text-muted">Montrez ce QR pour recevoir un transfert ou un repas offert.</p>
         </section>
 
         <section id="fidelite" className="mt-4 rounded-[24px] bg-lime p-5">
@@ -127,14 +124,6 @@ export default function ProfilePage() {
           <Row icon={LogOut} label="Se déconnecter" danger onClick={logout} />
         </div>
       </div>
-
-      <Sheet open={qrOpen} onClose={() => setQrOpen(false)} title="Mon QR de transfert">
-        <div className="flex flex-col items-center text-center">
-          <div className="w-60 rounded-2xl bg-white p-2 ring-1 ring-line">{profile && <Qr value={`DABALI:${profile.short_code}`} size={240} />}</div>
-          <p className="mt-3 rounded-full bg-ink px-4 py-1.5 text-lg font-extrabold tracking-wider text-lime">{profile?.short_code}</p>
-          <p className="mt-2 max-w-[260px] text-sm text-muted">Montrez ce QR pour recevoir de l&apos;argent ou un repas offert. Ce n&apos;est pas un ticket repas.</p>
-        </div>
-      </Sheet>
 
       <Sheet open={lostOpen} onClose={() => setLostOpen(false)} title="Téléphone perdu ou volé">
         <ul className="space-y-2 text-sm text-ink-2">

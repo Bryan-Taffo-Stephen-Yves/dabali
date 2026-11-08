@@ -32,7 +32,7 @@ export function RecipientSheet({ open, onClose, onPick, title }: {
     setScan(false);
     if (v.startsWith("DB1.")) {
       navigator.vibrate?.([120, 60, 120]);
-      setErr("C'est le QR d'un ticket repas, pas un QR de profil. Demande à ton ami d'ouvrir Profil → « Mon QR » (en haut), ou saisis son identifiant DB-….");
+      setErr("C'est le QR d'un ticket repas, pas un QR de profil. Demande à ton ami d'ouvrir son Profil (le QR est en haut), ou saisis son identifiant DB-….");
       return;
     }
     if (!/^DABALI:/i.test(v) && !/^DB-\d{4}$/i.test(v)) {
