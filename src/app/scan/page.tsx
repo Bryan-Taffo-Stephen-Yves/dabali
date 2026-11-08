@@ -95,6 +95,13 @@ export default function ScanPage() {
     if (lastToken.current && lastToken.current.t === token && now - lastToken.current.at < 4000) return;
     busy.current = true;
     lastToken.current = { t: token, at: now };
+    if (/^DABALI:/i.test(token.trim())) {
+      // QR de profil (transferts) présenté par erreur à la place du ticket
+      soundError(); say("QR de profil, pas un ticket");
+      setFail({ code: "PROFILE_QR", message: "C'est le QR de profil du client, pas un ticket. Il doit ouvrir « Mes tickets » et toucher son ticket." });
+      setTimeout(reset, 3500);
+      return;
+    }
     const r = await edge<Scan>("redeem-ticket", { token, service_date: date, service });
     if (r.ok) {
       const sc = r as unknown as Scan;

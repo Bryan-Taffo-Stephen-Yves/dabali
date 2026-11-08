@@ -21,15 +21,32 @@ export function RecipientSheet({ open, onClose, onPick, title }: {
     setBusy(true); setErr(null);
     const r = await rpc<Recipient>("lookup_recipient", { p_query: value });
     setBusy(false);
-    if (!r.ok) { setErr(r.message); return; }
+    if (!r.ok) { setErr(r.message); setScan(false); return; }
     onPick({ id: r.id, full_name: r.full_name, short_code: r.short_code });
     setQ(""); setScan(false);
+  }
+
+  // Le QR scanné doit être un QR de profil (« DABALI:DB-xxxx ») ; on explique clairement sinon
+  function onScanned(raw: string) {
+    const v = raw.trim();
+    setScan(false);
+    if (v.startsWith("DB1.")) {
+      navigator.vibrate?.([120, 60, 120]);
+      setErr("C'est le QR d'un ticket repas, pas un QR de profil. Demande à ton ami d'ouvrir Profil → « Mon QR » (en haut), ou saisis son identifiant DB-….");
+      return;
+    }
+    if (!/^DABALI:/i.test(v) && !/^DB-\d{4}$/i.test(v)) {
+      navigator.vibrate?.([120, 60, 120]);
+      setErr("Ce QR n'est pas un QR de profil Dabali. Scanne le QR affiché dans Profil, ou saisis l'identifiant DB-….");
+      return;
+    }
+    lookup(v);
   }
 
   return (
     <Sheet open={open} onClose={() => { setScan(false); onClose(); }} title={title}>
       {scan ? (
-        <ProfileScanner onResult={(v) => lookup(v)} onCancel={() => setScan(false)} />
+        <ProfileScanner onResult={onScanned} onCancel={() => setScan(false)} />
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); lookup(q); }} className="space-y-4">
           <Field label="Téléphone ou identifiant" value={q} onChange={(e) => setQ(e.target.value)}
