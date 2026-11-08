@@ -35,8 +35,8 @@ create function tests.extra(p_name text) returns uuid language sql immutable as 
 $$;
 
 -- Simule une requête PostgREST d'un utilisateur connecté
-create function tests.login(p_name text) returns void language sql as $$
-  select set_config('request.jwt.claims', json_build_object('sub', tests.uid(p_name), 'role', 'authenticated')::text, true);
+create function tests.login(p_name text, p_aal text default 'aal2') returns void language sql as $$
+  select set_config('request.jwt.claims', json_build_object('sub', tests.uid(p_name), 'role', 'authenticated', 'aal', p_aal)::text, true);
   select set_config('role', 'authenticated', true);
 $$;
 create function tests.as_anon() returns void language sql as $$

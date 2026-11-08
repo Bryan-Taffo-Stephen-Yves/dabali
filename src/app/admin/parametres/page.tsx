@@ -19,6 +19,7 @@ type Settings = {
   loyalty: { points_per_ticket: number; reward_points: number; reward_service?: ServiceKind };
   low_balance_threshold: number;
   service_days: number[];
+  mfa_required_roles: string[];
 };
 type Extra = { id: string; name: string; price: number; kind: string; is_active: boolean };
 type Cat = { id: number; name: string; sort: number };
@@ -105,6 +106,15 @@ export default function SettingsPage() {
           <Row label="Transfert maximum"><N value={s.transfer_limits.max} onChange={(v) => set({ transfer_limits: { ...s.transfer_limits, max: v } })} suffix="FCFA" /></Row>
           <Row label="Plafond journalier"><N value={s.transfer_limits.daily_max} onChange={(v) => set({ transfer_limits: { ...s.transfer_limits, daily_max: v } })} suffix="FCFA" /></Row>
           <Row label="Alerte solde bas"><N value={s.low_balance_threshold} onChange={(v) => set({ low_balance_threshold: v })} suffix="FCFA" /></Row>
+        </Card>
+        <Card title="Double authentification" subtitle="Code d'une application (Google Authenticator…) en plus du mot de passe">
+          {([["admin", "Administrateurs"], ["caissier", "Caisse"], ["chef", "Cuisine"], ["agent", "Agents du comptoir"]] as const).map(([k, l]) => (
+            <Row key={k} label={l} hint={k === "admin" || k === "caissier" ? "recommandé : gère de l'argent" : undefined}>
+              <input type="checkbox" checked={(s.mfa_required_roles ?? []).includes(k)} className="size-5 accent-[#16181D]"
+                onChange={(e) => set({ mfa_required_roles: e.target.checked ? [...(s.mfa_required_roles ?? []), k] : (s.mfa_required_roles ?? []).filter((x) => x !== k) })} />
+            </Row>
+          ))}
+          <p className="pt-2 text-xs text-muted">Appliqué aussi par la base : sans le code, ces comptes perdent leurs droits. Chacun peut l&apos;activer pour lui-même depuis le menu.</p>
         </Card>
         <Card title="Fidélité">
           <Row label="Points par repas servi"><N value={s.loyalty.points_per_ticket} onChange={(v) => set({ loyalty: { ...s.loyalty, points_per_ticket: v } })} /></Row>

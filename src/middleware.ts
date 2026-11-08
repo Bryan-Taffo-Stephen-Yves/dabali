@@ -46,6 +46,19 @@ export async function middleware(req: NextRequest) {
     const role = profile?.role as string | undefined;
     if (path === "/" || isAuthPage) return redirect(homeFor(role));
     if (area && !AREA_ROLES[area].includes(role ?? "")) return redirect(homeFor(role));
+
+    // Double authentification : exigée pour certains rôles (réglage), ou si le compte l'a activée.
+    // La base l'applique aussi : sans « aal2 », ces rôles perdent leurs droits d'équipe.
+    if (area && role && role !== "client") {
+      const [{ data: aal }, { data: req }] = await Promise.all([
+        sb.auth.mfa.getAuthenticatorAssuranceLevel(),
+        sb.from("settings").select("value").eq("key", "mfa_required_roles").maybeSingle(),
+      ]);
+      const required = Array.isArray(req?.value) && (req.value as string[]).includes(role);
+      if (aal && aal.currentLevel !== "aal2" && (required || aal.nextLevel === "aal2")) {
+        return redirect(`/double-authentification?next=${encodeURIComponent(path)}`);
+      }
+    }
   }
   return res;
 }

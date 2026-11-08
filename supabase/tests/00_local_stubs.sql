@@ -48,3 +48,9 @@ grant execute on function auth.uid() to anon, authenticated, service_role;
 -- Supabase Vault (clé Anthropic de l'assistant IA)
 create schema if not exists vault;
 create table if not exists vault.decrypted_secrets (name text, decrypted_secret text, created_at timestamptz default now());
+
+-- auth.jwt() : revendications du jeton (niveau d'authentification « aal » pour la double authentification)
+create or replace function auth.jwt() returns jsonb language sql stable as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb)
+$$;
+grant execute on function auth.jwt() to anon, authenticated, service_role;
