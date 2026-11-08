@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Check, X, LogOut, CameraOff, Keyboard, ShoppingCart } from "lucide-react";
+import { Check, X, LogOut, CameraOff, Keyboard, ShoppingCart, History } from "lucide-react";
 import Link from "next/link";
 import { edge, rpc, supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/logo";
@@ -144,6 +144,7 @@ export default function ScanPage() {
           <p className="text-[11px] text-white/60">{agent}</p>
         </div></div>
         <span className="flex items-center gap-2">
+          <Link href="/scan/historique" aria-label="Historique des scans" className="grid size-10 place-items-center rounded-full bg-white/10"><History className="size-4" /></Link>
           <Link href="/courses" aria-label="Mes courses" className={clsx("relative grid size-10 place-items-center rounded-full", shopping ? "bg-lime text-ink" : "bg-white/10")}>
             <ShoppingCart className="size-4" />
             {shopping ? <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-err text-[10px] font-extrabold text-white">{shopping}</span> : null}
