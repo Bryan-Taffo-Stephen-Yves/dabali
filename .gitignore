@@ -13,3 +13,4 @@ vision/zones.json
 .DS_Store
 .netlify
 scripts/install.env
+*.tsbuildinfo
