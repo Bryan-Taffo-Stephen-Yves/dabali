@@ -1,4 +1,5 @@
 "use client";
+import { buzz } from "@/lib/confetti";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
@@ -60,6 +61,7 @@ function Buy() {
   const pick = (e: Extra) => setPicked((p) => (p.includes(e.id) ? p.filter((x) => x !== e.id)
     : [...p.filter((x) => extras.find((y) => y.id === x)?.kind !== e.kind), e.id]));
 
+  const [printed, setPrinted] = useState<{ n: number; label: string; service: ServiceKind; to?: string } | null>(null);
   const buy = useCallback(async (pin?: string) => {
     if (!service) return;
     setBusy(true);
@@ -76,11 +78,15 @@ function Buy() {
     setPinOpen(false);
     refresh();
     const n = r.ticket_ids.length;
-    if (gift) { toast("ok", `${n} ticket${n > 1 ? "s" : ""} offert${n > 1 ? "s" : ""} à ${gift.full_name.split(" ")[0]} 🎁`); router.replace("/app"); return; }
-    await syncTokens();
-    toast("ok", n > 1 ? `${n} tickets ${cfg?.label} ajoutés` : `Ticket ${cfg?.label} prêt`);
+    // Le ticket « sort de l'imprimante », petite vibration, puis on ouvre le QR
+    setPrinted({ n, label: cfg?.label ?? "", service, to: gift?.full_name.split(" ")[0] });
+    buzz([20, 60, 40]);
+    const wait = new Promise((ok) => setTimeout(ok, 1700));
+    if (gift) { await wait; router.replace("/app"); return; }
+    await Promise.all([syncTokens(), wait]);
     router.replace(n === 1 ? `/app/tickets/${r.ticket_ids[0]}` : "/app/tickets");
   }, [service, qty, withExtras, picked, gift, useReward, canReward, refresh, router, toast, cfg]);
+
 
   return (
     <main className="pb-40">
@@ -190,6 +196,27 @@ function Buy() {
         <PinPad onComplete={(p) => buy(p)} error={pinError} busy={busy} />
       </Sheet>
       <RecipientSheet title="Offrir des tickets" open={giftOpen} onClose={() => setGiftOpen(false)} onPick={(u) => { setGift(u); setGiftOpen(false); }} />
+      {printed && <PrintOverlay {...printed} hours={validity} />}
     </main>
+  );
+}
+
+/** Achat réussi : le ticket sort d'une fente, comme d'une imprimante */
+function PrintOverlay({ n, label, service, to, hours }: { n: number; label: string; service: ServiceKind; to?: string; hours: number | string }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-ink px-8 text-white" role="status">
+      <div className="w-64">
+        <div className="relative z-10 h-4 rounded-full bg-[#2a2d34] shadow-[inset_0_2px_4px_rgba(0,0,0,0.6)]" />
+        <div className="-mt-2 overflow-hidden px-3 pt-2">
+          <div className="animate-print rounded-b-2xl bg-white px-5 pb-5 pt-6 text-center text-ink">
+            <ServiceBadge service={service} size="size-12" className="mx-auto" />
+            <p className="mt-3 text-xl font-extrabold">{n > 1 ? `${n} tickets` : "Ticket"} {label}</p>
+            <div className="my-3 border-t-2 border-dashed border-line" />
+            <p className="text-sm font-bold text-muted">{to ? `Offert à ${to} 🎁` : `Valable ${hours} h · QR prêt`}</p>
+          </div>
+        </div>
+      </div>
+      <p className="animate-rise mt-8 text-2xl font-extrabold" style={{ animationDelay: "0.9s" }}>{to ? "Cadeau envoyé !" : "C'est acheté !"}</p>
+    </div>
   );
 }

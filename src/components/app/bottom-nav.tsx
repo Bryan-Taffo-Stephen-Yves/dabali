@@ -30,7 +30,7 @@ export function BottomNav() {
                   "grid size-[60px] place-items-center rounded-[22px] ring-[5px] ring-canvas transition active:scale-95",
                   active ? "bg-ink text-lime" : "bg-lime text-ink shadow-[0_6px_18px_rgb(143_181_21/0.45)]",
                 )}>
-                  <Icon className="size-7" strokeWidth={2.2} />
+                  <Icon key={String(active)} className={clsx("size-7", active && "animate-nav")} strokeWidth={2.2} />
                 </span>
                 <span className={clsx("text-[11px] font-bold", active ? "text-ink" : "text-muted")}>{t.label}</span>
               </Link>
@@ -38,7 +38,7 @@ export function BottomNav() {
           }
           return (
             <Link key={t.href} href={t.href} className="flex min-h-12 flex-1 flex-col items-center justify-end gap-1 pt-1.5">
-              <Icon className={clsx("size-[22px] transition", active ? "text-ink" : "text-off")} strokeWidth={active ? 2.4 : 2} />
+              <Icon key={String(active)} className={clsx("size-[22px] transition", active ? "animate-nav text-ink" : "text-off")} strokeWidth={active ? 2.4 : 2} />
               <span className={clsx("text-[11px] font-bold", active ? "text-ink" : "text-muted")}>{t.label}</span>
               <span className={clsx("h-1 w-1 rounded-full", active ? "bg-lime-deep" : "bg-transparent")} />
             </Link>

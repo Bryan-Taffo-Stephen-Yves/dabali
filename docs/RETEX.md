@@ -36,6 +36,13 @@ perdre du temps et ce qu'il faut préparer **avant** le hackathon. À compléter
 8. **Arrondis d'affichage** : `to_char(x, 'FM999990.##')` arrondissait à l'unité (« 10 kg » au lieu de 9,8).
    → Utiliser la fonction `public._num()`.
 
+9. **Fonctions testées une par une, jamais l'ensemble** : les tests vérifient que tout marche, pas que c'est clair.
+   Des défauts visibles sont passés (tickets expirés sur l'accueil, « 19 points » affichés comme 10, « Ventes −6 000 »,
+   barre qui cache le texte). → Après chaque fonction : captures des écrans touchés, sur téléphone, **avec des données
+   accumulées** (points > 10, remboursements, listes longues), relues comme un utilisateur avant de dire « fini ».
+10. **Animation qui laisse un `transform`** sur un conteneur de page : les éléments `position: fixed` à l'intérieur
+   (barres du bas, feuilles) se décalent. → Finir l'animation sur `transform: none`.
+
 ## 3. Ordre de construction le jour J (cible : 2-3 h)
 
 1. Créer le projet Supabase, le site Netlify (lié au dépôt GitHub) et le jeton Supabase (10 min).

@@ -56,6 +56,38 @@ body {
 }
 .animate-rise { animation: rise 0.3s ease-out both; }
 
+/* Changement d'écran dans l'appli client */
+@keyframes page-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: none; opacity: 1; } /* « none » : ne casse pas les éléments position: fixed de la page */
+}
+.animate-page { animation: page-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Onglet actif de la barre du bas */
+@keyframes nav-bounce {
+  0% { transform: translateY(0) scale(1); }
+  35% { transform: translateY(-5px) scale(1.15); }
+  65% { transform: translateY(1px) scale(0.96); }
+  100% { transform: translateY(0) scale(1); }
+}
+.animate-nav { animation: nav-bounce 0.45s ease-out both; }
+
+/* Ticket qui sort de l'imprimante après un achat */
+@keyframes print-out {
+  0% { transform: translateY(-105%); }
+  70% { transform: translateY(4%); }
+  100% { transform: translateY(0); }
+}
+.animate-print { animation: print-out 1s cubic-bezier(0.3, 0.9, 0.3, 1) 0.15s both; }
+
+/* Cadre vivant autour du QR (une capture d'écran ne bouge pas) */
+@property --qr-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+@keyframes qr-spin { to { --qr-angle: 360deg; } }
+.qr-live {
+  background: conic-gradient(from var(--qr-angle), #c8f135, #16181d 25%, #c8f135 50%, #16181d 75%, #c8f135);
+  animation: qr-spin 3.5s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-pop, .animate-rise { animation: none; }
+  .animate-pop, .animate-rise, .animate-page, .animate-nav, .animate-print, .qr-live { animation: none; }
 }

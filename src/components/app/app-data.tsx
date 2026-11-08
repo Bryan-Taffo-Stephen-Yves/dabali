@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { PROFILE_COLUMNS, type Profile } from "@/lib/types";
+import { buzz, confetti } from "@/lib/confetti";
 
 type AppData = {
   profile: Profile | null;
@@ -49,6 +50,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         .channel(`me-${user.id}`)
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "wallets", filter: `user_id=eq.${user.id}` },
           (pl) => setBalance((pl.new as { balance: number }).balance))
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+          (pl) => setProfile((p) => (p ? { ...p, points: (pl.new as { points: number }).points ?? p.points } : p)))
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
           () => setUnread((u) => u + 1))
         .subscribe();
@@ -57,6 +60,18 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("focus", onFocus);
     return () => { window.removeEventListener("focus", onFocus); if (channel) sb.removeChannel(channel); };
   }, [refresh]);
+
+  // 10 points atteints : confettis une fois par petit-déjeuner gagné (pas au premier affichage d'un appareil)
+  useEffect(() => {
+    if (!profile) return;
+    const key = `dabali:rewards:${profile.id}`;
+    const won = Math.floor(profile.points / 10);
+    try {
+      const seen = localStorage.getItem(key);
+      if (seen !== null && won > Number(seen)) { confetti(); buzz([30, 50, 30, 50, 60]); }
+      localStorage.setItem(key, String(won));
+    } catch {}
+  }, [profile]);
 
   return <Ctx.Provider value={{ profile, balance, unread, refresh }}>{children}</Ctx.Provider>;
 }

@@ -103,7 +103,10 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
       <section className="relative mt-4 drop-shadow-[0_10px_30px_rgba(22,24,29,0.10)]">
         <div className="rounded-t-[30px] bg-card px-6 pb-6 pt-6">
           <div className="relative mx-auto w-full max-w-[290px]">
-            <Qr value={st === "valid" ? token : null} className={clsx("rounded-2xl p-3 ring-1 ring-line transition", st !== "valid" && "opacity-20 blur-[3px]")} />
+            {/* Cadre qui tourne + horloge à la seconde : une capture d'écran se repère tout de suite */}
+            <div className={clsx("rounded-[22px] p-[4px]", st === "valid" && token ? "qr-live" : "bg-transparent")}>
+              <Qr value={st === "valid" ? token : null} className={clsx("rounded-[18px] bg-white p-3 ring-1 ring-line transition", st !== "valid" && "opacity-20 blur-[3px]")} />
+            </div>
             {st !== "valid" && (
               <div className="absolute inset-0 grid place-items-center">
                 <span className={clsx("grid size-20 place-items-center rounded-full", st === "used" ? "bg-ok text-white" : "bg-err text-white")}>
@@ -115,6 +118,7 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
               <p className="absolute inset-x-0 -bottom-5 text-center text-xs font-semibold text-muted">{offline ? "QR non disponible hors ligne" : "Génération du QR…"}</p>
             )}
           </div>
+          {st === "valid" && token && <LiveClock />}
           <p className="mt-6 text-center text-sm font-semibold text-muted">
             {st === "valid" ? "Présentez ce code au comptoir, choisissez votre plat"
               : st === "used" ? `Utilisé le ${shortDateTime(t.used_at!)}`
@@ -180,7 +184,7 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
         <span className="grid size-11 place-items-center rounded-full bg-lime ring-4 ring-lime-soft"><ArrowLeftRight className="size-5" /></span>
         <div className="flex-1 text-center">
           <p className="text-xs font-bold text-muted">Points</p>
-          <p className="text-xl font-extrabold">{profile?.points ?? "—"}<span className="text-sm text-muted">/10</span></p>
+          <p className="text-xl font-extrabold">{profile?.points ?? "—"}<span className="text-sm text-muted"> pts</span></p>
         </div>
       </section>
 
@@ -208,5 +212,21 @@ function ScannedOverlay({ ticket, onClose }: { ticket: Ticket; onClose: () => vo
       <p className="mt-8 rounded-2xl bg-white/15 px-4 py-3 text-sm font-semibold">On te demandera ton avis dans 30 min, après le repas.</p>
       <button onClick={onClose} className="mt-8 text-sm font-bold underline underline-offset-4 opacity-90">Fermer</button>
     </div>
+  );
+}
+
+/** Heure à la seconde sous le QR : prouve à l'agent que l'écran est vivant (pas une capture) */
+function LiveClock() {
+  const [t, setT] = useState<string | null>(null);
+  useEffect(() => {
+    const f = () => setT(new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Africa/Abidjan" }));
+    f();
+    const id = setInterval(f, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <p className="mt-3 flex items-center justify-center gap-2 font-mono text-sm font-bold tabular-nums text-ink-2">
+      <span className="size-2 animate-pulse rounded-full bg-ok" />{t ?? "--:--:--"}
+    </p>
   );
 }
