@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
-import { ChevronLeft, ChevronRight, Copy, Plus, Send, Globe, Trash2, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Plus, Send, Globe, Trash2, Clock, Sparkles } from "lucide-react";
 import { ServiceIcon } from "@/components/app/service-icon";
 import { SERVICES, type ServiceKind } from "@/lib/types";
-import { rpc, supabase } from "@/lib/supabase/client";
+import { edge, rpc, supabase } from "@/lib/supabase/client";
+import { Sheet } from "@/components/ui/sheet";
 import { Card, PageTitle, Badge, input } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -14,6 +15,7 @@ import { addDays, dayShort, dayNum, duration, todayISO, weekStart, dateTime, SER
 type Menu = { id: string; week_start: string; status: "draft" | "submitted" | "published"; submitted_at: string | null; published_at: string | null };
 type Item = { id: string; service_date: string; service: ServiceKind; dish_id: string; price: number; planned_qty: number | null; sold_qty: number; served_qty: number; is_sold_out: boolean; is_full: boolean; dish: { name: string } };
 type DishOpt = { id: string; name: string; base_price: number };
+type Proposal = { resume: string; explications: string[]; items: { date: string; service: ServiceKind; dish_id: string; dish: string; planned_qty: number }[] };
 
 const STATUS: Record<Menu["status"], { label: string; tone: "gray" | "warn" | "ok" }> = {
   draft: { label: "Brouillon", tone: "gray" }, submitted: { label: "Soumis", tone: "warn" }, published: { label: "Publié", tone: "ok" },
@@ -28,6 +30,8 @@ export default function MenuPlanner() {
   const [dishes, setDishes] = useState<DishOpt[]>([]);
   const [deadline, setDeadline] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ai, setAi] = useState<"idle" | "thinking" | "ready">("idle");
+  const [proposal, setProposal] = useState<Proposal | null>(null);
   const days = useMemo(() => Array.from({ length: 6 }, (_, i) => addDays(week, i)), [week]);
 
   const load = useCallback(async () => {
@@ -94,6 +98,22 @@ export default function MenuPlanner() {
     load();
   }
 
+  async function propose() {
+    setAi("thinking"); setProposal(null);
+    const r = await edge<Proposal>("menu-assistant", { week_start: week });
+    if (!r.ok) { setAi("idle"); return toast("err", r.message); }
+    setProposal(r); setAi("ready");
+  }
+  async function applyProposal() {
+    if (!proposal) return;
+    setBusy(true);
+    const r = await rpc<{ added: number; removed: number }>("apply_menu_proposal", { p_week_start: week, p_items: proposal.items, p_replace: true });
+    setBusy(false);
+    if (!r.ok) return toast("err", r.message);
+    toast("ok", `${r.added} plats ajoutés au brouillon. Vérifiez puis soumettez.`);
+    setAi("idle"); setProposal(null); load();
+  }
+
   const late = deadline ? Date.now() > new Date(deadline).getTime() : false;
   const isAdmin = me?.role === "admin";
   const canPublish = menu && menu.status !== "published" && (!late || isAdmin);
@@ -120,6 +140,7 @@ export default function MenuPlanner() {
           {menu?.status === "published" && menu.published_at && <span className="text-sm text-muted">Publié le {dateTime(menu.published_at)}</span>}
           <div className="ml-auto flex flex-wrap gap-2">
             {menu === null && <Button size="sm" variant="outline" onClick={createMenu}><Plus className="size-4" />Menu vide</Button>}
+            {(menu === null || menu?.status === "draft") && <Button size="sm" variant="dark" loading={ai === "thinking"} onClick={propose}><Sparkles className="size-4 text-lime" />Proposer avec l&apos;IA</Button>}
             {(menu === null || menu?.status === "draft") && <Button size="sm" variant="outline" loading={busy} onClick={copyPrev}><Copy className="size-4" />Copier la semaine précédente</Button>}
             {menu?.status === "draft" && <Button size="sm" variant="dark" loading={busy} onClick={() => act("submit_menu")}><Send className="size-4" />Soumettre</Button>}
             {canPublish && <Button size="sm" loading={busy} onClick={() => act("publish_menu")}><Globe className="size-4" />Publier</Button>}
@@ -178,6 +199,49 @@ export default function MenuPlanner() {
           ))}
         </div>
       )}
+      <Sheet open={ai !== "idle"} onClose={() => { if (ai !== "thinking") { setAi("idle"); setProposal(null); } }} title="Menu proposé par l'IA">
+        {ai === "thinking" && (
+          <div className="py-10 text-center">
+            <Sparkles className="mx-auto size-10 animate-pulse text-lime-deep" />
+            <p className="mt-3 font-bold">L&apos;assistant compose la semaine…</p>
+            <p className="mt-1 text-sm text-muted">Popularité, notes, plaintes, coûts, stock et variété : comptez environ une minute.</p>
+          </div>
+        )}
+        {proposal && (
+          <div className="space-y-4">
+            <p className="rounded-2xl bg-lime-soft p-3 text-sm font-semibold">{proposal.resume}</p>
+            <div className="space-y-3">
+              {days.map((d) => {
+                const day = proposal.items.filter((i) => i.date === d);
+                if (!day.length) return null;
+                return (
+                  <div key={d} className="rounded-2xl border border-line p-3">
+                    <p className="mb-2 font-extrabold">{dayShort(d)} {dayNum(d)}</p>
+                    {SERVICES.map((sv) => {
+                      const l = day.filter((i) => i.service === sv);
+                      return l.length ? (
+                        <div key={sv} className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                          <span className="flex w-28 items-center gap-1 text-xs font-bold text-muted"><ServiceIcon service={sv} className="size-3.5" />{SERVICE_LABEL[sv]}</span>
+                          {l.map((i) => <span key={i.dish_id} className="rounded-full bg-canvas px-2.5 py-1 text-xs font-semibold">{i.dish} <b>· {i.planned_qty}</b></span>)}
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+            <div>
+              <p className="mb-1.5 text-sm font-extrabold">Pourquoi ces choix</p>
+              <ul className="space-y-1.5 text-sm text-ink-2">{proposal.explications.map((e, i) => <li key={i}>• {e}</li>)}</ul>
+            </div>
+            <div className="sticky bottom-0 flex gap-2 bg-card pt-2">
+              <Button variant="outline" onClick={propose}>Autre proposition</Button>
+              <Button block variant="dark" loading={busy} onClick={applyProposal}>Appliquer au brouillon</Button>
+            </div>
+            <p className="text-center text-xs text-muted">Les plats déjà vendus sont conservés. Vous pourrez tout modifier avant de soumettre.</p>
+          </div>
+        )}
+      </Sheet>
       {menu === null && (
         <Card><p className="py-10 text-center text-sm font-semibold text-muted">Aucun menu pour cette semaine. Créez-le ou copiez la semaine précédente.</p></Card>
       )}

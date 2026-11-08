@@ -96,7 +96,7 @@ fi
 # ── 4. Edge Functions ──
 step "Edge Functions"
 if [ "$FUNCTIONS" = 1 ]; then
-  for fn in ticket-token redeem-ticket forecast-assistant shopping-organize; do
+  for fn in ticket-token redeem-ticket forecast-assistant shopping-organize menu-assistant; do
     npx --yes supabase@latest functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --use-api >/dev/null \
       || die "Déploiement de $fn impossible"
     ok "$fn"
