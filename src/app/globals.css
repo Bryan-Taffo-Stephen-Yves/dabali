@@ -59,9 +59,11 @@ body {
 /* Changement d'écran dans l'appli client */
 @keyframes page-in {
   from { transform: translateY(8px); opacity: 0; }
-  to { transform: none; opacity: 1; } /* « none » : ne casse pas les éléments position: fixed de la page */
+  to { transform: none; opacity: 1; }
 }
-.animate-page { animation: page-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* « backwards » et pas « both » : une fois finie, l'animation ne laisse AUCUN transform sur la page
+   (Chrome garde sinon translateY(0), qui décale les éléments position: fixed : feuilles, barres du bas) */
+.animate-page { animation: page-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
 
 /* Onglet actif de la barre du bas */
 @keyframes nav-bounce {

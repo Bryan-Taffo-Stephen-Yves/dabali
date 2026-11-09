@@ -41,7 +41,8 @@ perdre du temps et ce qu'il faut préparer **avant** le hackathon. À compléter
    barre qui cache le texte). → Après chaque fonction : captures des écrans touchés, sur téléphone, **avec des données
    accumulées** (points > 10, remboursements, listes longues), relues comme un utilisateur avant de dire « fini ».
 10. **Animation qui laisse un `transform`** sur un conteneur de page : les éléments `position: fixed` à l'intérieur
-   (barres du bas, feuilles) se décalent. → Finir l'animation sur `transform: none`.
+   (barres du bas, feuilles) se décalent. → `animation-fill-mode: backwards` (pas `both`/`forwards`) : finir sur
+   `transform: none` ne suffit pas, Chrome garde `translateY(0)`. Vérifier en ouvrant une feuille en bas d'une page longue.
 
 11. **Hors ligne cassé** : `auth.getUser()` interroge le serveur → sans réseau, « personne de connecté » et pages
    qui plantent ; le service worker gardait les pages **sans leurs fichiers JS** → boutons inactifs.
