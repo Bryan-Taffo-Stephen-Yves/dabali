@@ -1,4 +1,5 @@
 "use client";
+import { Bitmoji } from "@/components/bitmoji";
 import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { ArrowLeft, Search, ShieldAlert, X } from "lucide-react";
@@ -7,7 +8,7 @@ import { PinPad } from "@/components/ui/pin-pad";
 import { SERVICE_LABEL } from "@/lib/format";
 import type { ServiceKind } from "@/lib/types";
 
-type Hit = { short_code: string; full_name: string; has_pin: boolean; locked: boolean; tickets: number };
+type Hit = { id: string; short_code: string; full_name: string; avatar: string | null; has_pin: boolean; locked: boolean; tickets: number };
 
 /**
  * Client sans téléphone (éteint, perdu, oublié) : l'agent le retrouve par son nom ou son code Dabali,
@@ -73,9 +74,7 @@ export function NoPhoneSheet({ service, date, onClose, onSuccess }: {
                 return (
                   <button key={h.short_code} disabled={!!why} onClick={() => { setWho(h); setErr(null); setBlocked(null); setLost(false); }}
                     className="flex w-full items-center gap-3 rounded-2xl bg-canvas p-3 text-left transition active:scale-[0.98] disabled:opacity-60">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-lime text-sm font-extrabold">
-                      {h.full_name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
-                    </span>
+                    <Bitmoji avatar={h.avatar} seed={h.id} className="size-11" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-bold">{h.full_name}</span>
                       <span className="block text-xs font-semibold text-muted">{h.short_code}</span>
@@ -94,7 +93,7 @@ export function NoPhoneSheet({ service, date, onClose, onSuccess }: {
         ) : (
           <>
             <div className="mt-3 flex items-center gap-3 rounded-2xl bg-canvas p-3">
-              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-lime font-extrabold">{who.full_name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
+              <Bitmoji avatar={who.avatar} seed={who.id} mood="wink" className="size-14" />
               <div className="min-w-0">
                 <p className="truncate text-lg font-extrabold">{who.full_name}</p>
                 <p className="text-sm font-semibold text-muted">{who.short_code} · {who.tickets} ticket{who.tickets > 1 ? "s" : ""} {label}</p>

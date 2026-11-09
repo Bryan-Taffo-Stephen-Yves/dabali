@@ -1,4 +1,5 @@
 "use client";
+import { Bitmoji } from "@/components/bitmoji";
 import { InstallApp } from "@/components/install-app";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -34,7 +35,10 @@ export default function HomePage() {
   return (
     <main className="px-4 pt-[max(1rem,env(safe-area-inset-top))]">
       <header className="flex items-center justify-between py-2">
-        <div>
+        <Link href="/app/profil" aria-label="Mon profil" className="mr-3 transition active:scale-95">
+          <Bitmoji avatar={profile?.avatar} seed={profile?.id} mood={rewardReady ? "laugh" : "happy"} className="size-12 ring-2 ring-white shadow-[var(--shadow-card)]" />
+        </Link>
+        <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold text-muted">{dayLong(todayISO())}</p>
           <h1 className="text-[22px] font-extrabold tracking-tight">Bonjour {firstName(profile?.full_name) || "👋"}</h1>
         </div>
@@ -94,7 +98,7 @@ export default function HomePage() {
         {tickets === null ? (
           <div className="h-[88px] animate-pulse rounded-[20px] bg-card" />
         ) : valid.length === 0 ? (
-          <EmptyTickets />
+          <EmptyTickets avatar={profile?.avatar} seed={profile?.id} />
         ) : (
           <div className="space-y-3">{valid.map((t) => <TicketRow key={t.id} t={t} />)}</div>
         )}
@@ -110,10 +114,10 @@ export default function HomePage() {
   );
 }
 
-function EmptyTickets() {
+function EmptyTickets({ avatar, seed }: { avatar?: string | null; seed?: string }) {
   return (
     <div className="flex items-center gap-3 rounded-[20px] border-2 border-dashed border-line p-4">
-      <span className="grid size-12 place-items-center rounded-2xl bg-card"><UtensilsCrossed className="size-5 text-muted" /></span>
+      <Bitmoji avatar={avatar} seed={seed} mood="yum" className="size-12" />
       <div className="flex-1">
         <p className="font-bold">Aucun ticket valide</p>
         <p className="text-sm text-muted">Achetez vos tickets, évitez la file.</p>

@@ -1,4 +1,5 @@
 "use client";
+import { Bitmoji } from "@/components/bitmoji";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
@@ -15,7 +16,7 @@ import { SERVICES, type Extra, type ServiceKind } from "@/lib/types";
 import { audioPref, say, setAudioPref, soundError, soundOk, soundServed, type AudioPref } from "@/lib/scan-sounds";
 
 type Dish = { menu_item_id: string; name: string; photo_url: string | null; available: boolean; left: number | null };
-type Scan = { ticket_id: string; client: string; ticket: string; extras: Extra[]; dishes: Dish[]; batch_size?: number; remaining?: number; gift_from?: string | null; is_reward?: boolean; method?: "pin"; secured?: boolean };
+type Scan = { ticket_id: string; client: string; ticket: string; extras: Extra[]; dishes: Dish[]; batch_size?: number; remaining?: number; gift_from?: string | null; is_reward?: boolean; method?: "pin"; secured?: boolean; avatar?: string | null; user_id?: string };
 type Fail = { code: string; message: string };
 type Counters = { served: number; outstanding: number };
 
@@ -112,6 +113,9 @@ export default function ScanPage() {
       const extras = sc.extras?.length ? `Avec ${sc.extras.map((e) => e.name).join(" et ")}.` : "Sans supplément.";
       say(`${sc.client.split(" ")[0]}. ${sc.ticket} valide. ${extras}`);
       setScan(sc); loadCounters();
+      // Bitmoji du client (aide à le reconnaître) : chargé juste après, sans retarder la validation
+      supabase().from("tickets").select("user_id, user:profiles!tickets_user_id_fkey(avatar)").eq("id", sc.ticket_id).single()
+        .then(({ data }) => { if (data) setScan((s) => s && s.ticket_id === sc.ticket_id ? { ...s, user_id: data.user_id, avatar: (data.user as unknown as { avatar: string | null } | null)?.avatar ?? null } : s); });
     } else {
       soundError();
       say(SPOKEN[(r as Fail).code] ?? "Refusé");
@@ -230,7 +234,11 @@ export default function ScanPage() {
       {scan && (
         <div className="fixed inset-0 z-50 flex flex-col bg-ok" role="dialog" aria-label="Ticket validé">
           <div className="flex items-center gap-4 px-5 pb-4 pt-[max(1.2rem,env(safe-area-inset-top))]">
-            <span className="animate-pop grid size-16 shrink-0 place-items-center rounded-full bg-white"><Check className="size-10 text-ok" strokeWidth={3} /></span>
+            <span className="relative shrink-0">
+              {scan.user_id ? <Bitmoji avatar={scan.avatar} seed={scan.user_id} mood="laugh" bounce className="size-20 ring-4 ring-white" />
+                : <span className="block size-20 animate-pulse rounded-full bg-white/30 ring-4 ring-white" />}
+              <span className="animate-pop absolute -bottom-1 -right-1 grid size-8 place-items-center rounded-full bg-white"><Check className="size-5 text-ok" strokeWidth={3} /></span>
+            </span>
             <div className="min-w-0">
               <p className="truncate text-2xl font-extrabold">{scan.client}</p>
               <p className="text-lg font-bold opacity-90">Ticket {scan.ticket} valide</p>

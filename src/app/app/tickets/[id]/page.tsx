@@ -1,4 +1,5 @@
 "use client";
+import { Bitmoji } from "@/components/bitmoji";
 import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -193,15 +194,18 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
         </>
       )}
 
-      {justScanned && <ScannedOverlay ticket={t} onClose={() => setJustScanned(false)} />}
+      {justScanned && <ScannedOverlay ticket={t} avatar={profile?.avatar} seed={profile?.id} onClose={() => setJustScanned(false)} />}
     </main>
   );
 }
 
-function ScannedOverlay({ ticket, onClose }: { ticket: Ticket; onClose: () => void }) {
+function ScannedOverlay({ ticket, onClose, avatar, seed }: { ticket: Ticket; onClose: () => void; avatar?: string | null; seed?: string }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-ok px-8 text-center text-white">
-      <span className="animate-pop grid size-28 place-items-center rounded-full bg-white text-ok"><Check className="size-16" strokeWidth={3} /></span>
+      <span className="relative">
+        <Bitmoji avatar={avatar} seed={seed} mood="yum" bounce className="size-36 ring-[6px] ring-white" />
+        <span className="animate-pop absolute -bottom-1 -right-1 grid size-12 place-items-center rounded-full bg-white text-ok" style={{ animationDelay: "0.25s" }}><Check className="size-7" strokeWidth={3} /></span>
+      </span>
       <h2 className="mt-6 text-3xl font-extrabold">Bon appétit !</h2>
       <p className="mt-2 text-lg font-semibold opacity-90">{ticket.dish ? ticket.dish.name : `Ticket ${SERVICE_LABEL[ticket.service]} validé`}</p>
       {!ticket.dish && <p className="mt-8 text-sm font-semibold opacity-80">L&apos;agent enregistre votre plat…</p>}

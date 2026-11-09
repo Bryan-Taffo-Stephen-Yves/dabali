@@ -7,6 +7,7 @@ export type Profile = {
   points: number;
   is_blocked: boolean;
   notify_free_seats: boolean;
+  avatar?: string | null;
 };
 
 export type ServiceKind = "breakfast" | "lunch" | "snack" | "dinner";
@@ -63,7 +64,7 @@ export type Ticket = {
 export const TICKET_COLUMNS =
   "id, user_id, buyer_id, status, service_date, service, is_reward, gift_from, valid_from, valid_until, used_at, total, extras, created_at, dish:dishes(id, name, photo_url, composition)";
 
-export const PROFILE_COLUMNS = "id, full_name, phone, short_code, role, points, is_blocked, notify_free_seats";
+export const PROFILE_COLUMNS = "id, full_name, phone, short_code, role, points, is_blocked, notify_free_seats, avatar";
 
 export type Occupancy =
   | { status: "unknown" }

@@ -489,3 +489,6 @@ update public.profiles p set pin_hash = extensions.crypt('2580', extensions.gen_
 
 -- Démo : double authentification désactivée (réactivable dans Admin → Paramètres → Double authentification)
 update public.settings set value = '[]' where key = 'mfa_required_roles';
+
+-- Démo : bitmojis (le compte Client = Aya avec son foulard ; les autres clients en reçoivent un au hasard dans l'appli)
+update public.profiles set avatar = 'aya' where short_code = 'DB-2026';

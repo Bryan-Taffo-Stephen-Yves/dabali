@@ -1,4 +1,6 @@
 "use client";
+import { Bitmoji } from "@/components/bitmoji";
+import { BITMOJIS } from "@/lib/bitmoji";
 import { useEffect, useState } from "react";
 import { PushToggle } from "@/components/push-toggle";
 import { InstallApp } from "@/components/install-app";
@@ -40,6 +42,15 @@ export default function ProfilePage() {
 
   // Téléphone perdu ou volé : nouveaux QR, autres appareils déconnectés (celui-ci reste connecté)
   const [lostOpen, setLostOpen] = useState(false);
+  const [pickOpen, setPickOpen] = useState(false);
+  async function pickAvatar(id: string) {
+    if (!profile) return;
+    setPickOpen(false);
+    const { error } = await supabase().from("profiles").update({ avatar: id }).eq("id", profile.id);
+    if (error) return toast("err", "Impossible d'enregistrer, réessayez avec du réseau.");
+    await refresh();
+    toast("ok", `Voilà ton nouveau bitmoji : ${BITMOJIS.find((b) => b.id === id)?.name} 😄`);
+  }
   const [lostBusy, setLostBusy] = useState(false);
   async function secureDevices() {
     setLostBusy(true);
@@ -75,9 +86,10 @@ export default function ProfilePage() {
       <div className="px-4">
         {/* QR de transfert visible dès l'ouverture du profil (rien à toucher pour le montrer) */}
         <section className="flex flex-col items-center rounded-[28px] bg-card p-6 text-center shadow-[var(--shadow-card)]">
-          <span className="grid size-16 place-items-center rounded-full bg-lime text-2xl font-extrabold">
-            {profile?.full_name?.split(" ").map((w) => w[0]).slice(0, 2).join("")}
-          </span>
+          <button onClick={() => setPickOpen(true)} aria-label="Changer mon bitmoji" className="relative transition active:scale-95">
+            <Bitmoji avatar={profile?.avatar} seed={profile?.id} className="size-24 ring-4 ring-lime" bounce />
+            <span className="absolute -bottom-1 -right-1 rounded-full bg-ink px-2 py-0.5 text-[10px] font-extrabold text-lime">Changer</span>
+          </button>
           <h2 className="mt-3 text-xl font-extrabold">{profile?.full_name}</h2>
           <p className="text-sm text-muted">{profile?.phone}</p>
           <div className="mt-5 w-44 rounded-2xl bg-white p-2 ring-1 ring-line">
@@ -124,6 +136,22 @@ export default function ProfilePage() {
           <Row icon={LogOut} label="Se déconnecter" danger onClick={logout} />
         </div>
       </div>
+
+      <Sheet open={pickOpen} onClose={() => setPickOpen(false)} title="Choisis ton bitmoji">
+        <p className="-mt-1 mb-3 text-sm text-muted">Il s&apos;affiche dans l&apos;appli et au comptoir : l&apos;agent te reconnaît plus vite.</p>
+        <div className="grid grid-cols-3 gap-3">
+          {BITMOJIS.map((b, i) => {
+            const on = (profile?.avatar ?? null) === b.id;
+            return (
+              <button key={b.id} onClick={() => pickAvatar(b.id)} style={{ animationDelay: `${i * 30}ms` }}
+                className={clsx("animate-pop flex flex-col items-center gap-1 rounded-2xl p-2 transition active:scale-95", on ? "bg-ink text-white" : "bg-canvas")}>
+                <Bitmoji avatar={b.id} mood={on ? "laugh" : "happy"} className="size-20" />
+                <span className="text-xs font-bold">{b.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Sheet>
 
       <Sheet open={lostOpen} onClose={() => setLostOpen(false)} title="Téléphone perdu ou volé">
         <ul className="space-y-2 text-sm text-ink-2">

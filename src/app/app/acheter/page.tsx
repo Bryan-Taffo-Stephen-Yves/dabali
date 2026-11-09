@@ -1,4 +1,5 @@
 "use client";
+import { Bitmoji } from "@/components/bitmoji";
 import { buzz } from "@/lib/confetti";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -196,13 +197,13 @@ function Buy() {
         <PinPad onComplete={(p) => buy(p)} error={pinError} busy={busy} />
       </Sheet>
       <RecipientSheet title="Offrir des tickets" open={giftOpen} onClose={() => setGiftOpen(false)} onPick={(u) => { setGift(u); setGiftOpen(false); }} />
-      {printed && <PrintOverlay {...printed} hours={validity} />}
+      {printed && <PrintOverlay {...printed} hours={validity} avatar={profile?.avatar} seed={profile?.id} />}
     </main>
   );
 }
 
 /** Achat réussi : le ticket sort d'une fente, comme d'une imprimante */
-function PrintOverlay({ n, label, service, to, hours }: { n: number; label: string; service: ServiceKind; to?: string; hours: number | string }) {
+function PrintOverlay({ n, label, service, to, hours, avatar, seed }: { n: number; label: string; service: ServiceKind; to?: string; hours: number | string; avatar?: string | null; seed?: string }) {
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-ink px-8 text-white" role="status">
       <div className="w-64">
@@ -216,7 +217,10 @@ function PrintOverlay({ n, label, service, to, hours }: { n: number; label: stri
           </div>
         </div>
       </div>
-      <p className="animate-rise mt-8 text-2xl font-extrabold" style={{ animationDelay: "0.9s" }}>{to ? "Cadeau envoyé !" : "C'est acheté !"}</p>
+      <div className="animate-rise mt-8 flex items-center gap-3" style={{ animationDelay: "0.9s" }}>
+        <Bitmoji avatar={avatar} seed={seed} mood={to ? "wink" : "wow"} className="size-16 ring-4 ring-lime" />
+        <p className="text-2xl font-extrabold">{to ? "Cadeau envoyé !" : "C'est acheté !"}</p>
+      </div>
     </div>
   );
 }
