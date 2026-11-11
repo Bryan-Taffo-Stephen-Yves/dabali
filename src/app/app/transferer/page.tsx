@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { RecipientSheet, type Recipient } from "@/components/app/recipient-sheet";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
-import { PinPad } from "@/components/ui/pin-pad";
+import { BiometricConfirm } from "@/components/app/biometric-confirm";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/components/app/app-data";
 import { fcfa } from "@/lib/format";
@@ -15,7 +15,7 @@ import { fcfa } from "@/lib/format";
 export default function TransferPage() {
   const router = useRouter();
   const toast = useToast();
-  const { balance, refresh } = useAppData();
+  const { balance, profile, refresh } = useAppData();
   const [to, setTo] = useState<Recipient | null>(null);
   const [pick, setPick] = useState(true);
   const [amount, setAmount] = useState("");
@@ -32,7 +32,7 @@ export default function TransferPage() {
     setBusy(false);
     if (!r.ok) {
       if (r.code === "PIN_NOT_SET") { setPinOpen(false); toast("err", "Crée d'abord ton code PIN."); return router.push("/app/profil?pin=new&back=/app/transferer"); }
-      if (r.code.startsWith("PIN")) return setPinError(r.message);
+      if (r.code.startsWith("PIN") || r.code === "BIOMETRIC_REQUIRED") return setPinError(r.message);
       setPinOpen(false);
       return toast("err", r.message);
     }
@@ -81,7 +81,7 @@ export default function TransferPage() {
       <RecipientSheet title="Envoyer à" open={pick} onClose={() => setPick(false)} onPick={(u) => { setTo(u); setPick(false); }} />
       <Sheet open={pinOpen} onClose={() => setPinOpen(false)} title="Confirmer le transfert">
         <p className="-mt-2 mb-4 text-sm text-muted">{fcfa(value)} → <b className="text-ink">{to?.full_name}</b></p>
-        <PinPad onComplete={send} error={pinError} busy={busy} />
+        <BiometricConfirm enabled={!!profile?.biometric_enabled} mode="send" onConfirmed={send} pinError={pinError} busy={busy} />
       </Sheet>
     </main>
   );
