@@ -32,7 +32,8 @@ function Buy() {
   const [service, setService] = useState<ServiceKind | null>((params.get("service") as ServiceKind) || null);
   const [qty, setQty] = useState(1);
   const [extras, setExtras] = useState<Extra[]>([]);
-  const [picked, setPicked] = useState<string[]>([]);
+  // Suppléments en quantité : { idSupplément: nombre } ; par type, au plus 1 par ticket
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [gift, setGift] = useState<Recipient | null>(null);
   const [giftOpen, setGiftOpen] = useState(false);
   // Depuis l'accueil (« Offrir ») : la recherche du bénéficiaire s'ouvre directement
@@ -54,22 +55,49 @@ function Buy() {
 
   const cfg = services && service ? services[service] : null;
   const withExtras = !!cfg?.extras;
-  const chosen = withExtras ? extras.filter((e) => picked.includes(e.id)) : [];
-  const unit = (cfg?.price ?? 0) + chosen.reduce((s, e) => s + e.price, 0);
+  const chosen = withExtras ? extras.filter((e) => (counts[e.id] ?? 0) > 0) : [];
+  const extrasTotal = chosen.reduce((s, e) => s + e.price * (counts[e.id] ?? 0), 0);
+  const usedOf = (kind: Extra["kind"]) => extras.filter((e) => e.kind === kind).reduce((n, e) => n + (counts[e.id] ?? 0), 0);
   const canReward = service === "breakfast" && (profile?.points ?? 0) >= 10;
-  const total = unit * qty - (useReward && canReward ? unit : 0);
+  const total = (cfg?.price ?? 0) * qty + extrasTotal - (useReward && canReward ? (cfg?.price ?? 0) : 0);
+  const extrasCount = chosen.reduce((n, e) => n + (counts[e.id] ?? 0), 0);
   const needsPin = total > 5000 || !!gift;
   const insufficient = balance !== null && balance < total;
 
-  const pick = (e: Extra) => setPicked((p) => (p.includes(e.id) ? p.filter((x) => x !== e.id)
-    : [...p.filter((x) => extras.find((y) => y.id === x)?.kind !== e.kind), e.id]));
+  // + / − sur un supplément (jamais plus que le nombre de tickets pour un même type)
+  const bump = (e: Extra, d: number) => setCounts((c) => {
+    const cur = c[e.id] ?? 0;
+    const used = extras.filter((x) => x.kind === e.kind).reduce((n, x) => n + (c[x.id] ?? 0), 0);
+    const next = Math.max(0, d > 0 && used >= qty ? cur : cur + d);
+    return { ...c, [e.id]: next };
+  });
+  // « Pour tous » : ce supplément sur chaque ticket encore libre de ce type
+  const fillAll = (e: Extra) => setCounts((c) => {
+    const others = extras.filter((x) => x.kind === e.kind && x.id !== e.id).reduce((n, x) => n + (c[x.id] ?? 0), 0);
+    return { ...c, [e.id]: Math.max(0, qty - others) };
+  });
+  // Moins de tickets : on retire les suppléments en trop (en partant des derniers choisis)
+  useEffect(() => {
+    setCounts((c) => {
+      const out = { ...c };
+      for (const kind of ["starter", "dessert"] as const) {
+        let over = extras.filter((x) => x.kind === kind).reduce((n, x) => n + (out[x.id] ?? 0), 0) - qty;
+        for (const x of [...extras].reverse()) {
+          if (over <= 0) break;
+          if (x.kind !== kind || !out[x.id]) continue;
+          const cut = Math.min(over, out[x.id]); out[x.id] -= cut; over -= cut;
+        }
+      }
+      return out;
+    });
+  }, [qty, extras]);
 
   const [printed, setPrinted] = useState<{ n: number; label: string; service: ServiceKind; to?: string } | null>(null);
   const buy = useCallback(async (pin?: string) => {
     if (!service) return;
     setBusy(true);
     const r = await rpc<{ ticket_ids: string[]; total: number }>("purchase_tickets", {
-      p_service: service, p_quantity: qty, p_extra_ids: withExtras ? picked : [], p_pin: pin ?? null,
+      p_service: service, p_quantity: qty, p_extras: withExtras ? chosen.map((e) => ({ id: e.id, qty: counts[e.id] })) : [], p_pin: pin ?? null,
       p_beneficiary_id: gift?.id ?? null, p_use_reward: useReward && canReward,
     });
     setBusy(false);
@@ -88,7 +116,7 @@ function Buy() {
     if (gift) { await wait; router.replace("/app"); return; }
     await Promise.all([syncTokens(), wait]);
     router.replace(n === 1 ? `/app/tickets/${r.ticket_ids[0]}` : "/app/tickets");
-  }, [service, qty, withExtras, picked, gift, useReward, canReward, refresh, router, toast, cfg]);
+  }, [service, qty, withExtras, chosen, counts, gift, useReward, canReward, refresh, router, toast, cfg]);
 
 
   return (
@@ -137,28 +165,43 @@ function Buy() {
           </div>
         </div>
 
-        {/* Suppléments */}
+        {/* Suppléments : quantité par article, au plus 1 entrée et 1 dessert par ticket */}
         {withExtras && (
           <section className="mt-5">
-            <h2 className="mb-1 text-[15px] font-extrabold">Supplément <span className="text-sm font-semibold text-muted">facultatif, par ticket</span></h2>
-            {([["starter", "Entrée"], ["dessert", "Dessert"]] as const).map(([kind, title]) => (
-              <div key={kind} className="mt-3">
-                <p className="mb-2 text-[13px] font-extrabold text-ink-2">{title} <span className="font-medium text-muted">une au choix</span></p>
-                <div className="flex flex-wrap gap-2">
-                  {extras.filter((e) => e.kind === kind).map((e) => {
-                    const on = picked.includes(e.id);
-                    return (
-                      <button key={e.id} onClick={() => pick(e)}
-                        className={clsx("flex items-center gap-1.5 rounded-full border-2 px-3.5 py-2 text-sm font-bold transition",
-                          on ? "border-ink bg-ink text-white" : "border-line bg-card")}>
-                        {on && <Check className="size-4 text-lime" strokeWidth={3} />}{e.name}
-                        <span className={on ? "text-lime" : "text-muted"}>+{fcfa(e.price, false)}</span>
-                      </button>
-                    );
-                  })}
+            <h2 className="text-[15px] font-extrabold">Suppléments <span className="text-sm font-semibold text-muted">facultatifs</span></h2>
+            <p className="text-xs font-medium text-muted">1 entrée et 1 dessert au maximum par ticket</p>
+            {([["starter", "Entrées"], ["dessert", "Desserts"]] as const).map(([kind, title]) => {
+              const used = usedOf(kind);
+              return (
+                <div key={kind} className="mt-3 overflow-hidden rounded-[22px] bg-card shadow-[var(--shadow-card)]">
+                  <div className="flex items-center justify-between px-4 pb-1 pt-3">
+                    <p className="text-[14px] font-extrabold">{title}</p>
+                    <span className={clsx("rounded-full px-2.5 py-0.5 text-xs font-extrabold", used ? "bg-ink text-lime" : "bg-canvas text-muted")}>{used} / {qty}</span>
+                  </div>
+                  <div className="divide-y divide-line">
+                    {extras.filter((e) => e.kind === kind).map((e) => {
+                      const n = counts[e.id] ?? 0;
+                      return (
+                        <div key={e.id} className="flex items-center gap-2 px-4 py-2.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold">{e.name}</p>
+                            <p className="text-xs font-semibold text-muted">+{fcfa(e.price)}{n > 1 ? ` · ${fcfa(e.price * n)}` : ""}</p>
+                          </div>
+                          {qty > 1 && n < qty - (used - n) && (
+                            <button onClick={() => fillAll(e)} className="rounded-full bg-canvas px-2.5 py-1 text-[11px] font-bold text-ink-2 active:scale-95">Pour tous</button>
+                          )}
+                          <button aria-label={`Moins de ${e.name}`} disabled={n === 0} onClick={() => bump(e, -1)}
+                            className="grid size-9 place-items-center rounded-full bg-canvas disabled:opacity-30 active:scale-95"><Minus className="size-4" /></button>
+                          <span className={clsx("w-6 text-center text-base font-extrabold", n ? "text-ink" : "text-off")}>{n}</span>
+                          <button aria-label={`Plus de ${e.name}`} disabled={used >= qty} onClick={() => bump(e, 1)}
+                            className="grid size-9 place-items-center rounded-full bg-lime disabled:opacity-30 active:scale-95"><Plus className="size-4" /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </section>
         )}
 
@@ -190,12 +233,12 @@ function Buy() {
         )}
         <Button size="lg" block variant="dark" disabled={!cfg || insufficient} loading={busy}
           onClick={() => (needsPin ? (setPinError(null), setPinOpen(true)) : buy())}>
-          {qty} ticket{qty > 1 ? "s" : ""} {cfg?.label ?? ""} <span className="text-lime">·</span> {fcfa(total)}
+          {qty} ticket{qty > 1 ? "s" : ""} {cfg?.label ?? ""}{extrasCount ? ` + ${extrasCount} suppl.` : ""} <span className="text-lime">·</span> {fcfa(total)}
         </Button>
       </div>
 
       <Sheet open={pinOpen} onClose={() => setPinOpen(false)} title="Confirmer l'achat">
-        <p className="-mt-2 mb-4 text-sm text-muted">{qty} × ticket {cfg?.label}{gift ? ` pour ${gift.full_name}` : ""} · <b className="text-ink">{fcfa(total)}</b></p>
+        <p className="-mt-2 mb-4 text-sm text-muted">{qty} × ticket {cfg?.label}{chosen.length ? ` + ${chosen.map((e) => `${counts[e.id]} ${e.name}`).join(", ")}` : ""}{gift ? ` pour ${gift.full_name}` : ""} · <b className="text-ink">{fcfa(total)}</b></p>
         <PinPad onComplete={(p) => buy(p)} error={pinError} busy={busy} />
       </Sheet>
       <RecipientSheet title="Offrir des tickets" open={giftOpen} onClose={() => setGiftOpen(false)} onPick={(u) => { setGift(u); setGiftOpen(false); }} />
