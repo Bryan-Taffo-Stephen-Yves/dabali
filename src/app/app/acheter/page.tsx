@@ -97,7 +97,7 @@ function Buy() {
     if (!service) return;
     setBusy(true);
     const r = await rpc<{ ticket_ids: string[]; total: number }>("purchase_tickets", {
-      p_service: service, p_quantity: qty, p_extras: withExtras ? chosen.map((e) => ({ id: e.id, qty: counts[e.id] })) : [], p_pin: pin ?? null,
+      p_service: service, p_quantity: qty, p_extra_ids: [], p_extras: withExtras ? chosen.map((e) => ({ id: e.id, qty: counts[e.id] })) : [], p_pin: pin ?? null,
       p_beneficiary_id: gift?.id ?? null, p_use_reward: useReward && canReward,
     });
     setBusy(false);
