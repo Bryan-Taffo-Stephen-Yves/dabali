@@ -233,7 +233,7 @@ function Buy() {
         )}
         <Button size="lg" block variant="dark" disabled={!cfg || insufficient} loading={busy}
           onClick={() => (needsPin ? (setPinError(null), setPinOpen(true)) : buy())}>
-          {qty} ticket{qty > 1 ? "s" : ""} {cfg?.label ?? ""}{extrasCount ? ` + ${extrasCount} suppl.` : ""} <span className="text-lime">·</span> {fcfa(total)}
+          <span className="whitespace-nowrap">{qty} × {cfg?.label ?? ""}{extrasCount ? ` + ${extrasCount} suppl.` : ""} <span className="text-lime">·</span> {fcfa(total)}</span>
         </Button>
       </div>
 
