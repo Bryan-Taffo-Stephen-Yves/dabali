@@ -55,6 +55,7 @@ export default function ScanPage() {
   const [counters, setCounters] = useState<Counters | null>(null);
   const [camErr, setCamErr] = useState<string | null>(null);
   const [agent, setAgent] = useState("");
+  const [role, setRole] = useState("");
   const [manual, setManual] = useState(false);
   const manualRef = useRef(false); // caméra en pause pendant la recherche « sans téléphone »
   useEffect(() => { manualRef.current = manual; }, [manual]);
@@ -86,8 +87,9 @@ export default function ScanPage() {
   useEffect(() => {
     supabase().auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
-      const { data } = await supabase().from("profiles").select("full_name").eq("id", user.id).single();
+      const { data } = await supabase().from("profiles").select("full_name, role").eq("id", user.id).single();
       setAgent(data?.full_name ?? "");
+      setRole(data?.role ?? "");
     });
   }, []);
 
@@ -163,22 +165,24 @@ export default function ScanPage() {
   return (
     <main className="no-overscroll fixed inset-0 flex flex-col bg-ink text-white">
       <header className="flex items-center justify-between gap-2 px-4 pb-2 pt-[max(0.8rem,env(safe-area-inset-top))]">
-        <div className="flex items-center gap-2"><Logo mark /><div>
+        <div className="flex min-w-0 items-center gap-2"><Logo mark /><div className="min-w-0">
           <p className="text-sm font-extrabold leading-tight">Scanner</p>
-          <p className="max-w-[46vw] truncate text-[11px] text-white/60">{agent}{now ? ` · ${now.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Abidjan" })} · ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Abidjan" }).replace(":", "h")}` : ""}</p>
+          <p className="truncate text-[11px] text-white/60">{agent}{now ? ` · ${now.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Abidjan" })} · ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Abidjan" }).replace(":", "h")}` : ""}</p>
         </div></div>
-        <span className="flex items-center gap-2">
+        <span className="flex shrink-0 items-center gap-1.5">
           <button onClick={cycleAudio} aria-label={audioMode === "on" ? "Sons et voix activés" : audioMode === "sound" ? "Sons seuls" : "Muet"}
             title={audioMode === "on" ? "Sons + voix" : audioMode === "sound" ? "Sons seuls" : "Muet"}
-            className={clsx("grid size-10 place-items-center rounded-full", audioMode === "off" ? "bg-white/10 text-white/50" : "bg-white/10")}>
+            className={clsx("grid size-9 place-items-center rounded-full", audioMode === "off" ? "bg-white/10 text-white/50" : "bg-white/10")}>
             {audioMode === "on" ? <Volume2 className="size-4" /> : audioMode === "sound" ? <Volume1 className="size-4" /> : <VolumeX className="size-4" />}
           </button>
-          <Link href="/scan/historique" aria-label="Historique des scans" className="grid size-10 place-items-center rounded-full bg-white/10"><History className="size-4" /></Link>
-          <Link href="/courses" aria-label="Mes courses" className={clsx("relative grid size-10 place-items-center rounded-full", shopping ? "bg-lime text-ink" : "bg-white/10")}>
+          <Link href="/scan/historique" aria-label="Historique des scans" className="grid size-9 place-items-center rounded-full bg-white/10"><History className="size-4" /></Link>
+          <Link href="/courses" aria-label="Mes courses" className={clsx("relative grid size-9 place-items-center rounded-full", shopping ? "bg-lime text-ink" : "bg-white/10")}>
             <ShoppingCart className="size-4" />
             {shopping ? <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-err text-[10px] font-extrabold text-white">{shopping}</span> : null}
           </Link>
-          <button onClick={logout} aria-label="Déconnexion" className="grid size-10 place-items-center rounded-full bg-white/10"><LogOut className="size-4" /></button>
+          {role === "agent"
+            ? <button onClick={logout} aria-label="Déconnexion" className="grid size-9 place-items-center rounded-full bg-white/10"><LogOut className="size-4" /></button>
+            : <Link href="/app/profil" aria-label="Fermer le scanner" className="grid size-9 place-items-center rounded-full bg-white text-ink"><X className="size-5" /></Link>}
         </span>
       </header>
       <div className="flex gap-1.5 overflow-x-auto px-4 pb-3 [scrollbar-width:none]">
