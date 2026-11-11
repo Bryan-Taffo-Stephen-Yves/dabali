@@ -91,6 +91,13 @@ est alors demandée à la première connexion).
   (les anciens gardés hors ligne sont refusés), autres sessions fermées, notifications retirées de l'ancien appareil.
 - Démo : compte Agent → « Sans téléphone » → « Aya » (DB-2026) → PIN 2580.
 
+## 4 quater. Le jour du concours : approvisionnement automatique
+
+À construire en ≈ 1 h en simulation : voir `docs/CAHIER_DES_CHARGES.md §20` (fournisseurs, agent vocal qui appelle,
+Google Sheet « Journal des commandes », agent WhatsApp Green API qui publie aussitôt dans le groupe, coursier Yango).
+À préparer avant : liste des vrais fournisseurs, comptes Retell/Twilio, compte entreprise Yango (+ jeton API),
+agent Green API sur un numéro dédié.
+
 ## 5. Ce qui manque encore (à faire avant le jour J)
 
 - [x] Script unique « tout installer » : `scripts/install.sh`.
