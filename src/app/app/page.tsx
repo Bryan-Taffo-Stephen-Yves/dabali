@@ -14,7 +14,7 @@ import { fcfa, firstName, dayLong, todayISO } from "@/lib/format";
 import type { Ticket } from "@/lib/types";
 
 function greeting() {
-  const h = Number(new Date().toLocaleString("fr-FR", { hour: "2-digit", hour12: false, timeZone: "Africa/Abidjan" }));
+  const h = new Date().getUTCHours(); // Abidjan = UTC+0 (« 17 h » en français n'est pas un nombre)
   return h < 12 ? "Bonne matinée" : h < 18 ? "Bon après-midi" : "Bonne soirée";
 }
 
