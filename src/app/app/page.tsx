@@ -71,7 +71,7 @@ export default function HomePage() {
           </Link>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-[20px] font-extrabold leading-tight tracking-tight">Bonjour {firstName(profile?.full_name) || "👋"}</h1>
-            <p className="text-[13px] font-semibold text-ink/65">{greeting()} · {dayLong(todayISO())}</p>
+            <p className="truncate text-[13px] font-semibold text-ink/65">{greeting()} · {new Date().toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Abidjan" })}</p>
           </div>
           <Link href="/app/notifications" aria-label="Notifications" className="relative grid size-11 place-items-center rounded-full bg-white/55 backdrop-blur transition active:scale-95">
             <Bell className="size-5" />
