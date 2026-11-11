@@ -35,6 +35,8 @@ function Buy() {
   const [picked, setPicked] = useState<string[]>([]);
   const [gift, setGift] = useState<Recipient | null>(null);
   const [giftOpen, setGiftOpen] = useState(false);
+  // Depuis l'accueil (« Offrir ») : la recherche du bénéficiaire s'ouvre directement
+  useEffect(() => { if (params.get("offrir")) setGiftOpen(true); }, [params]);
   const [useReward, setUseReward] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
