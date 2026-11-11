@@ -34,6 +34,7 @@
 17. [Tests](#17-tests)
 18. [Critères d'acceptation (« identique »)](#18-critères-dacceptation--identique-)
 19. [Hors périmètre / en attente](#19-hors-périmètre--en-attente)
+20. [À construire le jour du concours : approvisionnement automatique](#20-à-construire-le-jour-du-concours--approvisionnement-automatique)
 
 ---
 
@@ -881,4 +882,155 @@ Double authentification désactivée en démo.
 - **Caméra de file d'attente (YOLO)** : code prêt dans `vision/` et guide dans `docs/projets/camera-file-attente/`,
   **à ne lancer que sur décision explicite** (« OK caméra »). Sans caméra, l'affluence est estimée à partir du
   rythme des scans.
-- Mobile Money réel (actuellement **simulé**), agent WhatsApp, commande de groupe : pistes pour la suite.
+- Mobile Money réel (actuellement **simulé**), agent WhatsApp de commande pour les étudiants, commande de groupe : pistes pour la suite.
+- **Approvisionnement automatique** (fournisseurs, agent vocal, journal Google Sheets, agent WhatsApp, Yango) : **pas encore construit**, spécifié en §20 pour le jour du concours.
+
+---
+
+## 20. À construire le jour du concours : approvisionnement automatique
+
+> **Statut : spécifié, pas encore construit.** Objectif : quand le stock baisse, l'appli trouve les bons
+> fournisseurs (ceux chez qui la cantine achète déjà, avec leurs prix), **un agent vocal les appelle**, chaque
+> appel est noté dans un **Google Sheet**, et un **agent WhatsApp** publie aussitôt le résultat dans le groupe de la
+> cantine. Si un fournisseur ne peut pas livrer, **un coursier Yango** est commandé depuis l'appli.
+> Pays : **Côte d'Ivoire** (Abidjan, numéros +225, FCFA, heure d'Abidjan).
+> Budget temps : **≈ 1 h en mode simulation** (§20.9) ; le « réel » dépend de comptes externes (§20.8).
+
+### 20.1 Le circuit
+
+```
+Stock sous le seuil (déjà en place : fiche de courses automatique, §9.12)
+  → fiche découpée par FOURNISSEUR (prix habituels)
+  → AGENT 1 « l'appeleur » (vocal) appelle chaque fournisseur
+        └─ écrit 1 ligne par appel dans la base + le Google Sheet « Journal des commandes »
+  → AGENT 2 « le messager » (WhatsApp, Green API, comme l'agent des livraisons existant)
+        └─ dès qu'une ligne apparaît : message immédiat dans le groupe WhatsApp de la cantine
+  → si « ne livre pas » : course YANGO commandée par l'appli (auto sous un plafond, sinon validation dans le groupe)
+  → réception : l'employé coche « reçu » → le stock remonte (mouvement de stock « in »)
+```
+
+Les deux agents **ne se parlent pas** : ils passent par le tableau. Si l'un tombe en panne, l'autre continue, et tout
+reste tracé. **La base Dabali reste la référence** ; le Google Sheet en est la copie lisible pour l'équipe et pour
+l'agent 2 (une erreur dans le tableau ne dérègle pas l'appli).
+
+### 20.2 Carnet de fournisseurs (nouvelles tables)
+
+| Table | Colonnes |
+|---|---|
+| `suppliers` | id, name (« Grossiste Koné »), kind (`grossiste` · `marche` · `supermarche` · `boucherie` · `poissonnerie` · `autre`), phone (+225…), whatsapp, district (Adjamé, Cocody, Yopougon…), address, lat, lng, call_hours (ex. « 07:00–12:00 »), delivers (bool), payment_methods (`wave`, `especes`, `orange_money`, `mtn_momo`), notes, is_active |
+| `supplier_products` | supplier_id, ingredient_id, usual_price (FCFA par unité de l'ingrédient), pack (« sac 25 kg »), is_preferred (bool), backup_rank (1 = secours principal), last_price, last_price_at |
+| `supplier_orders` | id, shopping_list_id, supplier_id, items (jsonb : ingrédient, quantité, prix habituel), budget, status (§20.4), quoted_total, delivery_at, delivery_mode (`fournisseur` · `yango` · `retrait`), payment_method, attempts, call_summary, recording_url, yango_claim_id, yango_price, yango_status, sheet_row, posted_to_group (bool), created_at, updated_at |
+| `supplier_calls` | id, supplier_order_id, started_at, ended_at, outcome, transcript, recording_url |
+
+Écran admin **« Fournisseurs »** (chef, admin) : liste, fiche, produits et prix habituels, fournisseur préféré par
+ingrédient + secours. Données de démo : 5 fournisseurs d'Abidjan réalistes (grossiste à Adjamé, marché de Cocody,
+boucherie à Treichville, poissonnerie à Port-Bouët, supermarché à la Riviera), numéros fictifs +225.
+
+### 20.3 Découpage de la fiche par fournisseur
+
+Pour chaque article de la fiche ouverte : fournisseur **préféré** de l'ingrédient (sinon le moins cher) → une
+`supplier_order` par fournisseur, avec budget = Σ quantité × prix habituel. Écran « Courses » : regroupement par
+fournisseur, total estimé, bouton « Lancer les appels », et pour chaque fournisseur « Envoyer la commande sur
+WhatsApp » (lien `wa.me` avec le message déjà écrit) en secours manuel.
+
+### 20.4 Agent 1, l'appeleur (agent vocal)
+
+- **Outil** : Retell AI (ou Vapi, ElevenLabs Agents), voix française, numéro Twilio. Appels **aux heures d'ouverture**
+  du fournisseur seulement, **uniquement vers les numéros du carnet**.
+- **Script** : « Bonjour, c'est l'assistant de la cantine Dabali de l'école hôtelière. Cet appel est enregistré. Nous
+  voudrions [liste]. Ça fait combien ? Vous pouvez livrer quand ? Sinon on envoie un livreur Yango. Le paiement se
+  fait par Wave. »
+- **Fonctions** que l'agent appelle pendant l'appel (Edge Function `supplier-call-webhook`, signature vérifiée) :
+  `record_quote(total, par_article)`, `confirm_order(delivery_at, delivery_mode, payment)`, `cannot_deliver()`,
+  `call_back_at(heure)`, `item_unavailable(article)`.
+- **Règles de décision** (dans le code, pas dans l'IA) :
+
+| Situation | Statut | Suite automatique |
+|---|---|---|
+| Prix dans ±10 % du prix habituel **et** total ≤ budget | `commandé` | confirmation au fournisseur |
+| Prix trop haut ou budget dépassé | `a_valider` | « je vérifie avec l'équipe » → message dans le groupe, réponse attendue |
+| Pas de réponse / éteint / « pas d'unité » | `injoignable` | 2 nouveaux essais à 15 min, puis **fournisseur de secours** |
+| « Je ne suis pas là, rappelez » | `rappeler` | rappel à l'heure dite (ou secours si urgent) |
+| « Je ne peux pas livrer » (pas de véhicule, pas de carburant) | `yango` | course Yango (§20.6) |
+| Produit manquant | `partiel` | article reporté vers le fournisseur de secours |
+| Refus | `refuse` | fournisseur de secours |
+
+- **Garde-fous** : l'agent **ne paie jamais** (le paiement Wave est fait par une personne après validation) ; il ne
+  commande que les articles de la fiche, dans le budget ; il annonce être un assistant et que l'appel est enregistré
+  (loi ivoirienne sur les données personnelles) ; plafond d'appels par jour.
+- **Démo** : l'agent appelle **le téléphone du présentateur** (qui joue le grossiste) devant le jury.
+
+### 20.5 Google Sheet « Journal des commandes » + Agent 2, le messager
+
+Onglet **« Journal »** (1 ligne par appel ou changement de statut, écrite par l'Edge Function via l'API Google Sheets) :
+
+| Date | Heure | Fournisseur | Quartier | Produits et quantités | Prix proposé | Prix habituel | Statut | Livraison | Paiement | Montant | Essais | Résumé de l'appel | Envoyé au groupe |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
+Onglet **« Point du jour »** (formules) : commandes passées, total engagé / budget, à valider, en attente de livraison.
+
+**Agent 2** (Green API, même fonctionnement que l'agent des livraisons existant) : **dès qu'une ligne apparaît** avec
+« Envoyé au groupe » = Non → message immédiat dans le groupe WhatsApp de la cantine, puis « Oui ». **Pas d'heure
+fixe.** Exemples :
+
+> ✅ **Grossiste Koné (Adjamé)** : riz 2×25 kg + huile 20 L = **57 500 F**, livré demain 9h, Wave à la livraison
+> ⚠️ **Boucherie Bamba** : poulet 3 200 F/kg au lieu de 2 800 → **à valider** (répondre « OUI Bamba » ou « NON Bamba »)
+> ❌ **Supermarché X** : injoignable (3 essais) → poisson commandé chez **Poissonnerie Y**
+> 🛵 **Yango** en route vers Grossiste Koné, arrivée 10h35 · suivi : <lien>
+
+Réponse « OUI Bamba » / « NON Bamba » dans le groupe → l'agent 2 met la ligne à `valide` / `annule` → l'agent 1
+rappelle le fournisseur pour confirmer. Green API étant **non officiel**, utiliser un **numéro dédié** (jamais un
+numéro personnel). Alternative officielle si besoin : messages WhatsApp individuels au chef et à l'admin, ou groupe
+Telegram.
+
+### 20.6 Yango Delivery (coursier commandé par l'appli)
+
+- **API** : Yango Delivery = API « Express (claims) » de Yandex Delivery, hôte `https://b2b.taxi.yandex.net`,
+  chemin `/b2b/cargo/integration/v2/…`, jeton Bearer.
+- **Accès** : compte **entreprise** Yango Delivery + **contrat** de livraison → onglet « Intégration » → « Obtenir
+  un jeton ». Le jeton se range dans les secrets Supabase (`YANGO_DELIVERY_TOKEN`), jamais dans le code ni le chat.
+- **Étapes** : estimer le prix → créer la demande (retrait : adresse + téléphone du fournisseur ; livraison : la
+  cantine ; contenu) → **accepter** (lance la recherche de coursier, **facturé**) → suivre (position, délai, lien de
+  suivi public, téléphone du coursier, code de confirmation) → annuler si besoin (pénalité possible).
+- **Règle** : lancement automatique si prix ≤ **plafond du chef** (réglage, ex. 3 000 F) ; sinon « OK ? » dans le
+  groupe. Statut interrogé **toutes les minutes** (pas de notification Yango connue). Chaque étape → ligne dans le
+  journal → message dans le groupe.
+- **À confirmer avec Yango Business Abidjan** : que l'API Express couvre la **Côte d'Ivoire** (cité par une source
+  non officielle), le mode de facturation (compte entreprise, pas d'espèces au coursier). Le réseau de l'environnement
+  doit autoriser `b2b.taxi.yandex.net`.
+- **Mode simulation** (réglage `yango_mode = simulation`) : prix estimé fictif, coursier fictif, statuts qui avancent
+  toutes les 30 s, même messages : la démo marche sans compte.
+
+### 20.7 Réception et stock
+
+Écran « Courses » : par commande, « Reçu » (quantités réelles + prix payé + photo du reçu) → mouvement de stock `in`,
+mise à jour du **prix habituel** (moyenne glissante), alerte si un prix monte de plus de 15 %, ligne « Livré » dans le
+journal et message dans le groupe.
+
+### 20.8 Prérequis (à préparer AVANT le concours)
+
+| Quoi | Pour | Délai |
+|---|---|---|
+| Liste des vrais fournisseurs (nom, quartier, numéro, produits, prix) | carnet | 30 min |
+| Compte Retell AI (ou Vapi) + compte Twilio avec un numéro, Côte d'Ivoire autorisée | appels réels | quelques heures |
+| Compte entreprise Yango Delivery + contrat + jeton API, couverture CI confirmée | Yango réel | quelques jours |
+| Compte Google (Sheets) partagé avec le compte de service de l'appli | journal | 10 min |
+| Agent Green API (numéro dédié) réglé pour lire le nouveau Google Sheet | groupe WhatsApp | 15 min |
+| Clés rangées dans les secrets Supabase (jamais dans le chat) | tout | 5 min |
+
+### 20.9 Plan de construction le jour J (≈ 1 h, tout en simulation sauf l'appel de démo)
+
+1. Migration : tables `suppliers`, `supplier_products`, `supplier_orders`, `supplier_calls` + RLS (chef, admin) + données
+   de démo d'Abidjan (10 min).
+2. Découpage de la fiche par fournisseur + écran « Fournisseurs » + regroupement dans « Courses » (15 min).
+3. Edge Function `supplier-call-webhook` + règles de décision §20.4 + écriture du Google Sheet (10 min).
+4. Agent vocal en simulation (et un vrai appel vers le téléphone du présentateur si le compte Retell est prêt) (10 min).
+5. Yango en simulation (§20.6) (10 min).
+6. Tests SQL des règles de décision + vérification des écrans (5–10 min).
+
+### 20.10 Scénario de démo (2 minutes)
+
+1. Admin → Stock : l'huile passe sous le seuil → la fiche se découpe par fournisseur.
+2. « Lancer les appels » → **le téléphone du présentateur sonne**, il joue le grossiste : « 21 500 F, je ne peux pas livrer ».
+3. Le journal se remplit en direct, le message tombe dans le **groupe WhatsApp**.
+4. « Yango en route » avec le lien de suivi → « Livré » → « Reçu » → le stock remonte.
