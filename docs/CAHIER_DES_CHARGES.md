@@ -384,11 +384,18 @@ En haut de chaque écran, si plus de réseau : bandeau noir **« Hors ligne · v
 retour du réseau »** (icône `WifiOff` lime).
 
 **Accueil** `/app`
-1. En-tête : bitmoji (lien vers Profil), date longue (« Lundi 9 novembre »), « Bonjour Aya », cloche avec pastille
-   rouge du nombre de notifications non lues (9+).
-2. **Carte solde** lime `rounded-[28px]` : « Solde disponible », identifiant `DB-…` en puce, montant 40 px,
-   anneau décoratif blanc à 30 %, 3 tuiles noires : **Recharger** (`Plus`), **Transférer** (`Send`), **Acheter**
-   (`UtensilsCrossed`) avec icônes lime.
+1. **Bandeau lime pleine largeur** (du haut de l'écran, sous la barre d'état, jusqu'aux boutons ; barre du navigateur
+   passée en `#C8F135` sur cet écran ; deux cercles décoratifs blancs translucides) :
+   - en-tête : bitmoji 48 px (anneau blanc, lien vers Profil), « Bonjour Aya » 20 px extra-gras, dessous « Bonne
+     matinée / Bon après-midi / Bonne soirée · Mercredi 11 novembre » (heure d'Abidjan), cloche ronde `bg-white/55`
+     avec pastille rouge du nombre de notifications non lues ;
+   - centré : « Solde disponible » + œil (masque/affiche le solde, mémorisé sur le téléphone), montant 44 px
+     extra-gras « 22 000 » suivi de « FCFA » 24 px atténué, puce `bg-white/55` « Identifiant DB-2026 » + icône copier
+     (copie dans le presse-papiers, toast « Identifiant DB-2026 copié ») ;
+   - 4 actions rondes : cercles noirs 60 px avec icône lime et ombre, libellé 13 px gras dessous : **Recharger**
+     (`Plus`), **Transférer** (`Send`), **Acheter** (`UtensilsCrossed`), **Offrir** (`Gift`, ouvre l'achat avec la
+     recherche du bénéficiaire déjà ouverte : `/app/acheter?offrir=1`).
+2. Le reste de la page est une **carte `bg-canvas` aux coins hauts arrondis (32 px) qui remonte de 28 px** sur le bandeau.
 3. Carte « Installer l'appli » (si pas encore installée).
 4. **Fidélité** : « 7 / 10 points » ou « Petit-déjeuner offert disponible 🎉 » (× n si ≥ 20), barre de progression,
    « + 9 / 10 vers le suivant ».
