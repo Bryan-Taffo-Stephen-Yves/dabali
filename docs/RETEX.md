@@ -9,7 +9,7 @@ perdre du temps et ce qu'il faut préparer **avant** le hackathon. À compléter
 |---|---|---|
 | Ticket lié à un plat ou générique ? | **Générique par type de repas** (petit-déj 500, déjeuner 2 500, snack 700, dîner 2 500) ; le plat se choisit **au comptoir** | Refonte complète (base, achat, scan, prévisions, tests) |
 | Durée de validité | **48 h** | — |
-| Supplément | entrée **ou** dessert, choisi à l'achat | — |
+| Supplément | en quantité : jusqu'à 1 entrée et 1 dessert **par ticket** (10 tickets → jusqu'à 10 desserts, au choix par article) | Le premier modèle (1 seul supplément pour tout l'achat) ne convenait pas |
 | Fidélité | **10 points = 1 petit-déjeuner offert** | — |
 | Argent d'un ticket | revient au prestataire **au scan** ; ticket non scanné **remboursé automatiquement** à l'expiration, rappel 3 h avant | Recalcul des chiffres + remboursement rétroactif de l'historique |
 | Thème | mobile, **clair**, seul l'écran QR s'inspire des maquettes | Refonte du design |

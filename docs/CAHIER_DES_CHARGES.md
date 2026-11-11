@@ -296,7 +296,7 @@ Règles :
 |---|---|
 | Ticket | **générique par type de repas** (pas lié à un plat). Le plat se choisit **au comptoir**. |
 | Types de repas et prix | **Petit-déjeuner** 06h30–09h30, **500 F** · **Déjeuner** 11h30–14h30, **2 500 F** · **Snack** 15h30–17h00, **700 F** · **Dîner** 17h30–20h00, **2 500 F** (réglage `services`) |
-| Suppléments | **au plus une entrée et un dessert** par ticket (chacun facultatif), choisis à l'achat, **seulement au déjeuner et au dîner** (desserts de 200 à 500 F, entrées 500 F) ; refus « Choisissez au plus une entrée et un dessert. » |
+| Suppléments | **en quantité, article par article** : pour N tickets, jusqu'à N entrées et N desserts (ex. 10 tickets → 6 Salade de fruits + 4 Yaourt, ou 3 desserts seulement) ; chaque ticket reçoit **au plus 1 entrée et 1 dessert** ; **seulement au déjeuner et au dîner** (desserts de 200 à 500 F, entrées 500 F) ; prix de chaque ticket = ticket + ses suppléments |
 | Validité | **48 h** après l'achat (`ticket_validity_hours`) |
 | Achat | 1 à **10 tickets** par achat ; impossible pour un service déjà terminé |
 | Argent | va au prestataire **au moment du scan** (« Encaissé · repas servis »), pas à l'achat |
@@ -422,7 +422,7 @@ bouton d'achat du ticket du service.
 - « Le plat se choisit au comptoir. Ticket valable 48 h pour le repas choisi. »
 - Grille 2×2 des types de repas (pastille colorée, horaires, prix, case cochée `ink`).
 - Nombre de tickets (– / +, 1 à 10).
-- Supplément (déjeuner/dîner) : une entrée et/ou un dessert (toucher un autre article du même type le remplace).
+- Suppléments (déjeuner/dîner) : deux cartes « Entrées » et « Desserts » avec compteur « 3 / 10 » ; pour chaque article : nom, prix, bouton « Pour tous » (remplit les tickets libres), −, quantité, + (lime). Le total d'un type ne dépasse jamais le nombre de tickets ; baisser le nombre de tickets retire les suppléments en trop. Bouton du bas : « 10 tickets Déjeuner + 10 suppl. · 30 000 FCFA ».
 - Interrupteur « 1 petit-déjeuner offert avec 10 points » (petit-déjeuner seulement).
 - « Offrir ces tickets » → recherche du bénéficiaire (téléphone, `DB-…` ou scan de son QR de profil).
 - Bouton noir en bas « 2 tickets Déjeuner · 6 000 FCFA ». PIN demandé si > 5 000 F ou cadeau.
@@ -553,8 +553,8 @@ Caisse : `credit_wallet(user, montant, note)` → `recharge_cash` + reçu + noti
 ### 9.3 Achat de tickets
 `purchase_tickets(service, quantité, suppléments, pin, bénéficiaire, utiliser_points)` vérifie : service ouvert et
 pas terminé, prix du réglage, suppléments autorisés (au plus 1 entrée et 1 dessert, actifs), solde suffisant, PIN si > 5 000 F ou
-cadeau, points si petit-déjeuner offert ; crée N tickets `valid` (validité 48 h, `qr_nonce` aléatoire 16 octets),
-débite le portefeuille (une transaction `purchase`, note « 2 × ticket Déjeuner ») ; cadeau → notification
+cadeau, points si petit-déjeuner offert ; suppléments `p_extras = [{id, qty}]` (par type, total ≤ N ; ancienne forme `p_extra_ids` = même supplément sur chaque ticket) répartis 1 entrée + 1 dessert maximum par ticket ; crée N tickets `valid` (validité 48 h, `qr_nonce` aléatoire 16 octets),
+débite le portefeuille (une transaction `purchase`, note « 10 × ticket Déjeuner + 6 Salade de fruits + 4 Yaourt ») ; cadeau → notification
 `meal_gift` au bénéficiaire et `gift_from` sur ses tickets.
 
 ### 9.4 QR du ticket (y compris hors ligne)
@@ -703,7 +703,7 @@ mfa_required_roles: []             push_function_url: "<url de send-push>"
 |---|---|
 | Compte | `set_pin(p_pin, p_current_pin)`, `lookup_recipient(p_query)`, `secure_my_devices(p_keep_endpoint)` |
 | Argent | `simulate_recharge(p_amount)`, `transfer_funds(p_recipient_id, p_amount, p_pin, p_note)`, `credit_wallet(p_user_id, p_amount, p_note)` (caisse) |
-| Tickets | `purchase_tickets(p_service, p_quantity, p_extra_ids, p_pin, p_beneficiary_id, p_use_reward)`, `cancel_ticket(p_ticket_id)`, `serve_dish(p_ticket_id, p_menu_item_id)`, `service_counters(p_date, p_service)` |
+| Tickets | `purchase_tickets(p_service, p_quantity, p_extra_ids, p_pin, p_beneficiary_id, p_use_reward, p_extras)`, `cancel_ticket(p_ticket_id)`, `serve_dish(p_ticket_id, p_menu_item_id)`, `service_counters(p_date, p_service)` |
 | Sans téléphone | `counter_lookup(p_query, p_service)`, `redeem_with_pin(p_short_code, p_pin, p_service_date, p_service, p_lost_phone)` |
 | Avis | `pending_review()`, `dismiss_review(p_ticket_id)`, `rate_ticket(p_ticket_id, p_stars, p_comment, p_complaints, p_photo_path)`, `my_review(p_ticket_id)`, `reply_review(p_rating_id, p_reply)`, `admin_ratings()` |
 | Menus | `submit_menu`, `publish_menu`, `copy_menu_week`, `menu_deadline`, `menu_ai_context`, `apply_menu_proposal(p_week_start, p_items, p_replace)` |
