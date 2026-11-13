@@ -59,10 +59,16 @@ export type Ticket = {
   extras: Extra[];
   created_at: string;
   dish: Pick<Dish, "id" | "name" | "photo_url" | "composition"> | null;
+  /** Commande à heure de retrait (null pour un ticket normal) */
+  pickup_at: string | null;
+  order_no: number | null;
+  prep_status: "received" | "preparing" | "ready" | null;
+  ready_at: string | null;
+  order_item: { id: string; dish: Pick<Dish, "id" | "name" | "photo_url" | "composition"> | null } | null;
 };
 
 export const TICKET_COLUMNS =
-  "id, user_id, buyer_id, status, service_date, service, is_reward, gift_from, valid_from, valid_until, used_at, total, extras, created_at, dish:dishes(id, name, photo_url, composition)";
+  "id, user_id, buyer_id, status, service_date, service, is_reward, gift_from, valid_from, valid_until, used_at, total, extras, created_at, dish:dishes(id, name, photo_url, composition), pickup_at, order_no, prep_status, ready_at, order_item:menu_items(id, dish:dishes(id, name, photo_url, composition))";
 
 export const PROFILE_COLUMNS = "id, full_name, phone, short_code, role, points, is_blocked, notify_free_seats, avatar";
 

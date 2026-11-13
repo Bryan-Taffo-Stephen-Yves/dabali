@@ -16,13 +16,14 @@ import { SERVICES, type Extra, type ServiceKind } from "@/lib/types";
 import { audioPref, say, setAudioPref, soundError, soundOk, soundServed, type AudioPref } from "@/lib/scan-sounds";
 
 type Dish = { menu_item_id: string; name: string; photo_url: string | null; available: boolean; left: number | null };
-type Scan = { ticket_id: string; client: string; ticket: string; extras: Extra[]; dishes: Dish[]; batch_size?: number; remaining?: number; gift_from?: string | null; is_reward?: boolean; method?: "pin"; secured?: boolean; avatar?: string | null; user_id?: string };
+type Scan = { ticket_id: string; client: string; ticket: string; extras: Extra[]; dishes: Dish[]; batch_size?: number; remaining?: number; gift_from?: string | null; is_reward?: boolean; method?: "pin"; secured?: boolean; avatar?: string | null; user_id?: string;
+  order?: { no: number; dish: string; pickup_at: string; ready: boolean } };
 type Fail = { code: string; message: string };
 type Counters = { served: number; outstanding: number };
 
 const SPOKEN: Record<string, string> = {
   ALREADY_USED: "Ticket déjà utilisé", EXPIRED: "Ticket expiré", INVALID_QR: "QR invalide", CANCELLED: "Ticket annulé",
-  WRONG_SERVICE: "Mauvais service", SOLD_OUT: "Plat épuisé",
+  WRONG_SERVICE: "Mauvais service", SOLD_OUT: "Plat épuisé", WRONG_DAY: "Commande pour un autre jour", TOO_EARLY: "Commande pas encore prête",
 };
 
 export default function ScanPage() {
@@ -113,7 +114,8 @@ export default function ScanPage() {
       const sc = r as unknown as Scan;
       soundOk();
       const extras = sc.extras?.length ? `Avec ${sc.extras.map((e) => e.name).join(" et ")}.` : "Sans supplément.";
-      say(`${sc.client.split(" ")[0]}. ${sc.ticket} valide. ${extras}`);
+      say(sc.order ? `${sc.client.split(" ")[0]}. Commande numéro ${sc.order.no}. ${sc.order.dish}. ${sc.extras?.length ? extras : ""}`
+        : `${sc.client.split(" ")[0]}. ${sc.ticket} valide. ${extras}`);
       setScan(sc); loadCounters();
       // Bitmoji du client (aide à le reconnaître) : chargé juste après, sans retarder la validation
       supabase().from("tickets").select("user_id, user:profiles!tickets_user_id_fkey(avatar)").eq("id", sc.ticket_id).single()
@@ -230,7 +232,8 @@ export default function ScanPage() {
         const sc = r as unknown as Scan;
         setManual(false); busy.current = true; soundOk();
         const extras = sc.extras?.length ? `Avec ${sc.extras.map((e) => e.name).join(" et ")}.` : "Sans supplément.";
-        say(`${sc.client.split(" ")[0]}. ${sc.ticket} valide. ${extras}`);
+        say(sc.order ? `${sc.client.split(" ")[0]}. Commande numéro ${sc.order.no}. ${sc.order.dish}.`
+          : `${sc.client.split(" ")[0]}. ${sc.ticket} valide. ${extras}`);
         setScan(sc); loadCounters();
       }} />}
 
@@ -245,9 +248,16 @@ export default function ScanPage() {
             </span>
             <div className="min-w-0">
               <p className="truncate text-2xl font-extrabold">{scan.client}</p>
-              <p className="text-lg font-bold opacity-90">Ticket {scan.ticket} valide</p>
+              <p className="text-lg font-bold opacity-90">{scan.order ? `Commande n° ${scan.order.no}` : `Ticket ${scan.ticket} valide`}</p>
             </div>
           </div>
+          {/* Commande : le plat est déjà choisi, l'agent le remet */}
+          {scan.order && (
+            <div className="mx-5 mb-3 rounded-2xl bg-white px-4 py-3 text-ink shadow-lg">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-[#15803d]">Commande · à remettre{scan.order.ready ? " (prête en cuisine)" : ""}</p>
+              <p className="text-2xl font-extrabold">{scan.order.dish}</p>
+            </div>
+          )}
           {/* Supplément : à servir en plus du plat (ou rien) */}
           {scan.extras?.length > 0 ? (
             <div className="mx-5 mb-3 rounded-2xl bg-white px-4 py-3 text-ink shadow-lg">
@@ -256,7 +266,7 @@ export default function ScanPage() {
                 <p key={e.id} className="text-xl font-extrabold">+ {e.kind === "starter" ? "Entrée" : e.kind === "dessert" ? "Dessert" : "Extra"} : {e.name}</p>
               ))}
             </div>
-          ) : (
+          ) : !scan.order && (
             <p className="mx-5 mb-3 rounded-2xl bg-white/15 px-4 py-2.5 text-base font-bold">Sans supplément : plat seul</p>
           )}
           <div className="mx-5 mb-3 flex flex-wrap gap-2 text-sm font-bold">
@@ -271,8 +281,8 @@ export default function ScanPage() {
             {scan.method === "pin" && <span className="rounded-full bg-white px-3 py-1 text-ink">🔑 Sans QR · code PIN</span>}
             {scan.secured && <span className="rounded-full bg-white px-3 py-1 text-ink">📵 Anciens QR désactivés</span>}
           </div>
-          <p className="px-5 pb-2 text-sm font-bold uppercase tracking-wider opacity-80">Plat servi</p>
-          <div className="grid flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto px-5 pb-4">
+          {scan.order ? <div className="flex-1" /> : <p className="px-5 pb-2 text-sm font-bold uppercase tracking-wider opacity-80">Plat servi</p>}
+          <div className={clsx("grid auto-rows-min grid-cols-2 gap-3 overflow-y-auto px-5 pb-4", !scan.order && "flex-1")}>
             {scan.dishes.map((d) => (
               <button key={d.menu_item_id} disabled={!d.available} onClick={() => serve(d)}
                 className="overflow-hidden rounded-3xl bg-white text-left text-ink shadow-lg transition active:scale-95 disabled:opacity-40">
@@ -285,7 +295,9 @@ export default function ScanPage() {
             ))}
           </div>
           <div className="px-5 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            <button onClick={reset} className="h-12 w-full rounded-full bg-white/20 font-bold">Plat non précisé</button>
+            {scan.order
+              ? <button onClick={() => { soundServed(); setServed(scan.order!.dish); setScan(null); setTimeout(reset, 1300); }} className="h-14 w-full rounded-full bg-white text-lg font-extrabold text-ok">Commande remise ✓</button>
+              : <button onClick={reset} className="h-12 w-full rounded-full bg-white/20 font-bold">Plat non précisé</button>}
           </div>
         </div>
       )}

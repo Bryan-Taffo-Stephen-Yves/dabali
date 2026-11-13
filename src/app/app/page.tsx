@@ -3,7 +3,7 @@ import { Bitmoji } from "@/components/bitmoji";
 import { InstallApp } from "@/components/install-app";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, Plus, Send, UtensilsCrossed, Sparkles, ChevronRight, Eye, EyeOff, Copy, Gift } from "lucide-react";
+import { Bell, Plus, Send, UtensilsCrossed, Sparkles, ChevronRight, Eye, EyeOff, Copy, Gift, ChefHat } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/components/app/app-data";
 import { OccupancyCard } from "@/components/app/occupancy-card";
@@ -124,6 +124,16 @@ export default function HomePage() {
           {rewardReady && points % 10 > 0 && <p className="mt-1 text-xs font-semibold text-muted">+ {points % 10} / 10 vers le suivant</p>}
         </div>
         <ChevronRight className="size-5 text-off" />
+      </Link>
+
+      {/* Commande à heure de retrait */}
+      <Link href="/app/commander" className="mt-3 flex items-center gap-3 rounded-[22px] bg-ink p-3.5 text-white shadow-[var(--shadow-card)] transition active:scale-[0.99]">
+        <span className="grid size-10 place-items-center rounded-xl bg-lime"><ChefHat className="size-5 text-ink" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-extrabold">Commander à l&apos;avance</p>
+          <p className="text-xs font-semibold text-white/65">Ton plat préparé pour l&apos;heure que tu choisis</p>
+        </div>
+        <ChevronRight className="size-5 text-lime" />
       </Link>
 
       {/* Tickets valides seulement : les expirés et utilisés restent dans « Mes tickets » */}

@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/components/app/app-data";
 import { ServiceBadge } from "@/components/app/service-icon";
-import { cachedTicket, cachedToken, displayStatus, STATUS_META, syncTokens } from "@/lib/tickets";
-import { SERVICE_LABEL, duration, fcfa, shortDateTime } from "@/lib/format";
+import { cachedTicket, cachedToken, displayStatus, isOrder, orderDish, orderStep, PREP_STEPS, STATUS_META, syncTokens } from "@/lib/tickets";
+import { SERVICE_LABEL, duration, fcfa, relativeDay, shortDateTime, time } from "@/lib/format";
 import { TICKET_COLUMNS, type Ticket } from "@/lib/types";
 
 export default function TicketPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,6 +26,7 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
   const [now, setNow] = useState(Date.now());
   const [justScanned, setJustScanned] = useState(false);
   const last = useRef<string | undefined>(undefined);
+  const lastPrep = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     // 1) cache local : affichage immédiat, y compris en mode avion
@@ -41,7 +42,9 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
       if (!data) return;
       const nt = data as unknown as Ticket;
       if (last.current === "valid" && nt.status === "used") { setJustScanned(true); navigator.vibrate?.(120); refresh(); }
+      if (lastPrep.current && lastPrep.current !== "ready" && nt.prep_status === "ready") navigator.vibrate?.([80, 60, 80]);
       last.current = nt.status;
+      lastPrep.current = nt.prep_status;
       setT(nt);
     };
     load();
@@ -74,9 +77,16 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
   const label = SERVICE_LABEL[t.service];
   const ends = new Date(t.valid_until).getTime();
   const step = st === "used" ? 3 : 2;
+  const order = isOrder(t);
+  const dish = order ? orderDish(t) : null;
+  const ostep = orderStep(t);
+  const steps: readonly string[] = order ? PREP_STEPS : ["Acheté", "Valide", "Utilisé"];
+  const cur = order ? ostep + 1 : step;
+  const allDone = order ? ostep === 3 : step === 3;
 
   async function cancel() {
-    if (!confirm(`Annuler ce ticket ${label} ? ${t!.total > 0 ? fcfa(t!.total) + " seront remboursés sur votre solde." : ""}`)) return;
+    if (!confirm(order ? `Annuler la commande n° ${t!.order_no} ? ${fcfa(t!.total)} seront remboursés sur votre solde.`
+      : `Annuler ce ticket ${label} ? ${t!.total > 0 ? fcfa(t!.total) + " seront remboursés sur votre solde." : ""}`)) return;
     const r = await rpc<{ refunded: number }>("cancel_ticket", { p_ticket_id: id });
     if (!r.ok) return toast("err", r.message);
     toast("ok", r.refunded > 0 ? `${fcfa(r.refunded)} remboursés sur votre solde.` : "Ticket annulé, points rendus.");
@@ -90,7 +100,7 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
         <button onClick={() => router.push("/app/tickets")} aria-label="Retour" className="grid size-11 place-items-center rounded-full bg-card shadow-[var(--shadow-card)]">
           <ChevronLeft className="size-5" />
         </button>
-        <h1 className="text-[17px] font-extrabold">Mon ticket</h1>
+        <h1 className="text-[17px] font-extrabold">{order ? "Ma commande" : "Mon ticket"}</h1>
         <span className={clsx("rounded-full px-3 py-1 text-xs font-extrabold", STATUS_META[st].chip)}>{STATUS_META[st].label}</span>
       </header>
 
@@ -117,7 +127,10 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
           </div>
           {st === "valid" && token && <LiveClock />}
           <p className="mt-6 text-center text-sm font-semibold text-muted">
-            {st === "valid" ? "Présentez ce code au comptoir, choisissez votre plat"
+            {order ? (st === "valid" ? `Présentez ce code au comptoir à partir de ${time(t.pickup_at!)}`
+                : st === "used" ? `Récupérée le ${shortDateTime(t.used_at!)}`
+                : st === "expired" ? "Non récupérée à temps : le plat est perdu" : "Commande annulée et remboursée")
+              : st === "valid" ? "Présentez ce code au comptoir, choisissez votre plat"
               : st === "used" ? `Utilisé le ${shortDateTime(t.used_at!)}`
               : st === "expired" ? (t.total > 0 ? "Non utilisé : remboursé sur ton solde" : "Non utilisé : tes points t'ont été rendus") : "Ticket annulé et remboursé"}
           </p>
@@ -132,8 +145,9 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
         <div className="rounded-b-[30px] bg-card px-6 pb-6 pt-3 text-center">
           <div className="flex items-center justify-center gap-3">
             <ServiceBadge service={t.service} size="size-11" />
-            <h2 className="text-[22px] font-extrabold leading-tight">Ticket {label}{t.is_reward && " 🎁"}</h2>
+            <h2 className="text-[22px] font-extrabold leading-tight">{order ? `Commande n° ${t.order_no}` : <>Ticket {label}{t.is_reward && " 🎁"}</>}</h2>
           </div>
+          {order && <p className="mt-2 text-lg font-extrabold text-ink-2">{dish?.name}</p>}
           {t.gift_from && <p className="mx-auto mt-2 w-fit rounded-full bg-lime-soft px-3 py-1 text-sm font-bold text-lime-deep">🎁 Offert par {t.gift_from}</p>}
           {st === "used" && t.dish && <p className="mt-2 text-sm font-bold text-ink-2">Servi : {t.dish.name}</p>}
           {st === "used" && t.dish && (
@@ -146,7 +160,15 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
               {t.extras.map((e) => <span key={e.id} className="rounded-full bg-canvas px-2.5 py-1 text-xs font-bold">+ {e.name}</span>)}
             </div>
           )}
-          {st === "valid" && (
+          {order && st === "valid" && (
+            t.prep_status === "ready"
+              ? <p className="mx-auto mt-4 w-fit rounded-2xl bg-lime px-5 py-3 text-xl font-extrabold">Prête ! Passe la prendre 🍽️</p>
+              : <p className="mt-4 text-[26px] font-extrabold tracking-tight text-lime-deep">
+                  <span className="text-base font-bold text-muted">retrait {relativeDay(t.pickup_at!.slice(0, 10)).toLowerCase()} à </span>{time(t.pickup_at!)}
+                </p>
+          )}
+          {order && st === "valid" && <p className="text-xs font-semibold text-muted">à récupérer avant {time(t.valid_until)}, sinon le plat est perdu</p>}
+          {!order && st === "valid" && (
             <>
               <p className="mt-4 text-[30px] font-extrabold tracking-tight text-lime-deep">
                 <span className="text-base font-bold text-muted">valable encore </span>{duration(ends - now)}
@@ -156,16 +178,16 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
           )}
 
           <ol className="mt-5 flex items-center">
-            {["Acheté", "Valide", "Utilisé"].map((s, i) => (
+            {steps.map((s, i) => (
               <li key={s} className="flex flex-1 items-center">
                 <div className="flex flex-col items-center gap-1">
                   <span className={clsx("grid size-7 place-items-center rounded-full text-xs font-extrabold transition",
-                    i + 1 < step || step === 3 ? "bg-ink text-lime" : i + 1 === step ? "bg-lime text-ink ring-4 ring-lime-soft" : "bg-canvas text-off")}>
-                    {i + 1 < step || step === 3 ? <Check className="size-4" strokeWidth={3} /> : i + 1}
+                    i + 1 < cur || allDone ? "bg-ink text-lime" : i + 1 === cur ? "bg-lime text-ink ring-4 ring-lime-soft" : "bg-canvas text-off")}>
+                    {i + 1 < cur || allDone ? <Check className="size-4" strokeWidth={3} /> : i + 1}
                   </span>
-                  <span className={clsx("text-[11px] font-bold", i + 1 <= step ? "text-ink" : "text-off")}>{s}</span>
+                  <span className={clsx("whitespace-nowrap text-[11px] font-bold", i + 1 <= cur ? "text-ink" : "text-off")}>{s}</span>
                 </div>
-                {i < 2 && <span className={clsx("mx-1 mb-5 h-0.5 flex-1 rounded", i + 1 < step ? "bg-ink" : "bg-line")} />}
+                {i < steps.length - 1 && <span className={clsx("mx-1 mb-5 h-0.5 flex-1 rounded", i + 1 < cur ? "bg-ink" : "bg-line")} />}
               </li>
             ))}
           </ol>
@@ -190,7 +212,9 @@ export default function TicketPage({ params }: { params: Promise<{ id: string }>
           <p className="mt-4 flex items-center justify-center gap-2 text-xs font-semibold text-muted">
             <Sun className="size-4" /> Montez la luminosité pour un scan instantané
           </p>
-          <Button variant="ghost" block className="mt-2 text-err" onClick={cancel}>Annuler et me faire rembourser</Button>
+          {(!order || t.prep_status === "received") && (
+            <Button variant="ghost" block className="mt-2 text-err" onClick={cancel}>{order ? "Annuler la commande (remboursée)" : "Annuler et me faire rembourser"}</Button>
+          )}
         </>
       )}
 
@@ -207,8 +231,8 @@ function ScannedOverlay({ ticket, onClose, avatar, seed }: { ticket: Ticket; onC
         <span className="animate-pop absolute -bottom-1 -right-1 grid size-12 place-items-center rounded-full bg-white text-ok" style={{ animationDelay: "0.25s" }}><Check className="size-7" strokeWidth={3} /></span>
       </span>
       <h2 className="mt-6 text-3xl font-extrabold">Bon appétit !</h2>
-      <p className="mt-2 text-lg font-semibold opacity-90">{ticket.dish ? ticket.dish.name : `Ticket ${SERVICE_LABEL[ticket.service]} validé`}</p>
-      {!ticket.dish && <p className="mt-8 text-sm font-semibold opacity-80">L&apos;agent enregistre votre plat…</p>}
+      <p className="mt-2 text-lg font-semibold opacity-90">{orderDish(ticket) ? orderDish(ticket)!.name : `Ticket ${SERVICE_LABEL[ticket.service]} validé`}</p>
+      {!orderDish(ticket) && <p className="mt-8 text-sm font-semibold opacity-80">L&apos;agent enregistre votre plat…</p>}
       <p className="mt-8 rounded-2xl bg-white/15 px-4 py-3 text-sm font-semibold">On te demandera ton avis dans 30 min, après le repas.</p>
       <button onClick={onClose} className="mt-8 text-sm font-bold underline underline-offset-4 opacity-90">Fermer</button>
     </div>

@@ -82,3 +82,13 @@ export async function syncTokens(): Promise<QrCache> {
   if (r.ok) warmOffline(r.tokens.map((t) => `/app/tickets/${t.ticket_id}`));
   return cache;
 }
+
+// ───────── Commandes à heure de retrait ─────────
+export const isOrder = (t: Pick<Ticket, "pickup_at">) => !!t.pickup_at;
+export const orderDish = (t: Ticket) => t.order_item?.dish ?? t.dish;
+export const PREP_STEPS = ["Reçue", "En préparation", "Prête", "Récupérée"] as const;
+/** Étape de la commande (0 → 3) */
+export function orderStep(t: Pick<Ticket, "status" | "prep_status">): number {
+  if (t.status === "used") return 3;
+  return t.prep_status === "ready" ? 2 : t.prep_status === "preparing" ? 1 : 0;
+}

@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { TicketRow } from "@/components/app/ticket-row";
 import { ServiceBadge } from "@/components/app/service-icon";
 import { Qr } from "@/components/qr";
-import { cachedTickets, cachedToken, displayStatus, fetchMyTickets, syncTokens } from "@/lib/tickets";
+import { cachedTickets, cachedToken, displayStatus, fetchMyTickets, isOrder, syncTokens } from "@/lib/tickets";
 import { SERVICE_LABEL, shortDateTime } from "@/lib/format";
 import { SERVICES, type Ticket } from "@/lib/types";
 
@@ -26,15 +26,17 @@ export default function TicketsPage() {
   // valides : celui qui expire le plus tôt d'abord
   const valid = (tickets ?? []).filter((t) => displayStatus(t) === "valid").sort((a, b) => a.valid_until.localeCompare(b.valid_until));
   const past = (tickets ?? []).filter((t) => displayStatus(t) !== "valid");
-  const next = valid[0];
-  const counts = SERVICES.map((s) => [s, valid.filter((t) => t.service === s).length] as const).filter(([, n]) => n > 0);
+  const orders = valid.filter(isOrder).sort((a, b) => a.pickup_at!.localeCompare(b.pickup_at!));
+  const plain = valid.filter((t) => !isOrder(t));
+  const next = plain[0];
+  const counts = SERVICES.map((s) => [s, plain.filter((t) => t.service === s).length] as const).filter(([, n]) => n > 0);
 
   useEffect(() => { if (next) setToken(cachedToken(next.id)); }, [next, tickets]);
 
   return (
     <main>
       <PageHeader title="Mes tickets" back={false}
-        right={<Link href="/app/acheter" className="flex h-10 items-center gap-1.5 rounded-full bg-lime px-4 text-sm font-extrabold"><Plus className="size-4" />Acheter</Link>} />
+        right={<span className="flex gap-2"><Link href="/app/commander" className="flex h-10 items-center rounded-full bg-card px-3.5 text-sm font-extrabold shadow-[var(--shadow-card)]">Commander</Link><Link href="/app/acheter" className="flex h-10 items-center gap-1.5 rounded-full bg-lime px-4 text-sm font-extrabold"><Plus className="size-4" />Acheter</Link></span>} />
       <div className="px-4">
         {counts.length > 0 && (
           <div className="mb-4 flex flex-wrap gap-2">
@@ -44,6 +46,13 @@ export default function TicketsPage() {
               </span>
             ))}
           </div>
+        )}
+
+        {orders.length > 0 && (
+          <section className="mb-5">
+            <h2 className="mb-2 text-[15px] font-extrabold">Mes commandes</h2>
+            <div className="space-y-3">{orders.map((t) => <TicketRow key={t.id} t={t} />)}</div>
+          </section>
         )}
 
         {next && (
@@ -68,8 +77,8 @@ export default function TicketsPage() {
 
         <div className="space-y-3">
           {tickets === null && [0, 1, 2].map((i) => <div key={i} className="h-[88px] animate-pulse rounded-[20px] bg-card" />)}
-          {(tab === "next" ? valid : past).map((t) => <TicketRow key={t.id} t={t} />)}
-          {tickets !== null && (tab === "next" ? valid : past).length === 0 && (
+          {(tab === "next" ? plain : past).map((t) => <TicketRow key={t.id} t={t} />)}
+          {tickets !== null && (tab === "next" ? plain : past).length === 0 && (
             <div className="rounded-[24px] border-2 border-dashed border-line p-8 text-center">
               <p className="font-bold">{tab === "next" ? "Aucun ticket valide" : "Aucun ticket passé"}</p>
               {tab === "next" && <Link href="/app/acheter" className="mt-3 inline-block rounded-full bg-ink px-5 py-2.5 text-sm font-bold text-white">Acheter des tickets</Link>}

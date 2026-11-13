@@ -111,10 +111,12 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
 
       {cfg && (
         <div className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-md bg-gradient-to-t from-canvas via-canvas to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-6">
-          <p className="mb-2 text-center text-xs font-semibold text-muted">Avec un ticket {cfg.label}, choisissez ce plat au comptoir.</p>
-          <Link href={`/app/acheter?service=${item.service}`}
+          <Link href={`/app/commander?item=${item.id}`}
             className="flex h-14 items-center justify-center gap-2 rounded-full bg-ink text-base font-bold text-white active:scale-[0.99]">
-            Acheter un ticket {cfg.label} <span className="text-lime">·</span> {fcfa(cfg.price)} <ChevronRight className="size-5" />
+            Commander ce plat <span className="text-lime">·</span> {fcfa(item.price)} <ChevronRight className="size-5" />
+          </Link>
+          <Link href={`/app/acheter?service=${item.service}`} className="mt-2 block text-center text-xs font-bold text-muted underline underline-offset-2">
+            ou acheter un ticket {cfg.label} ({fcfa(cfg.price)}) et choisir au comptoir
           </Link>
         </div>
       )}
