@@ -19,6 +19,19 @@ import { addDays, dayNum, dayShort, fcfa, time, todayISO } from "@/lib/format";
 import { SERVICES, type Extra, type MenuItem, type ServiceKind } from "@/lib/types";
 
 type Slot = { at: string; left: number };
+type Win = { open: string | null; close: string | null; paused?: boolean };
+type OrderCfg = { windows?: Partial<Record<ServiceKind, Win>> };
+
+/** État des commandes du jour pour un repas (plage fixée par la cuisine, pause) */
+function windowState(win: Win | undefined, isToday: boolean, now = new Date()) {
+  if (win?.paused) return { ok: false, text: "La cuisine a mis les commandes en pause. Réessaie un peu plus tard." };
+  if (!isToday || !win?.open || !win?.close) return { ok: true, text: null };
+  const hm = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Abidjan" });
+  const range = `${win.open.replace(":", "h")} à ${win.close.replace(":", "h")}`;
+  if (hm < win.open) return { ok: false, text: `Les commandes du jour ouvrent à ${win.open.replace(":", "h")} (de ${range}). Tu peux déjà précommander pour un autre jour.` };
+  if (hm >= win.close) return { ok: false, text: `Les commandes du jour sont fermées (de ${range}). Précommande pour un autre jour.` };
+  return { ok: true, text: `Commandes du jour ouvertes de ${range}.` };
+}
 
 /** Commande à heure de retrait : je choisis mon plat et l'heure, la cuisine prépare, je passe le prendre. */
 export default function OrderPage() {
@@ -44,12 +57,15 @@ function Order() {
   const [pinError, setPinError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ no: number; dish: string; at: string } | null>(null);
+  const [orderCfg, setOrderCfg] = useState<OrderCfg>({});
 
   useEffect(() => {
     fetchMenu(today, addDays(today, 7)).then(setItems);
     fetchServices().then(setServices);
     supabase().from("extras").select("id, name, price, kind").eq("is_active", true).in("kind", ["starter", "dessert"]).order("sort")
       .then(({ data }) => setExtras((data ?? []) as Extra[]));
+    supabase().from("settings").select("value").eq("key", "orders").maybeSingle()
+      .then(({ data }) => data?.value && setOrderCfg(data.value as OrderCfg));
   }, [today]);
 
   // Repas encore commandables (service pas terminé)
@@ -72,7 +88,8 @@ function Order() {
   const withExtras = !!cfg?.extras;
   const chosenExtras = useMemo(() => (withExtras ? extras.filter((e) => picked[e.kind] === e.id) : []), [withExtras, extras, picked]);
   const total = (item?.price ?? 0) + chosenExtras.reduce((s, e) => s + e.price, 0);
-  const needsPin = total > 5000;
+  const needsPin = true; // chaque commande est confirmée par le titulaire (PIN)
+  const win = windowState(service ? orderCfg.windows?.[service] : undefined, day === today);
   const insufficient = balance !== null && item !== null && balance < total;
 
   // Heure limite d'annulation : 1 h 30 avant le début du service
@@ -154,6 +171,12 @@ function Order() {
             <p className="font-bold">Pas encore de menu à commander</p>
             <p className="mt-1 text-sm text-muted">Le menu de la semaine n&apos;est pas encore publié.</p>
           </div>
+        )}
+
+        {win.text && (
+          <p className={clsx("mt-4 rounded-2xl px-3.5 py-3 text-[13px] font-bold", win.ok ? "bg-ok-soft text-[#15803d]" : "bg-warn-soft text-ink")}>
+            <Clock className="mr-1.5 inline size-4 align-[-3px]" />{win.text}
+          </p>
         )}
 
         {/* Plat */}
@@ -239,7 +262,7 @@ function Order() {
             Solde insuffisant ({fcfa(balance ?? 0)}). <a href="/app/recharger" className="underline">Recharger</a>
           </p>
         )}
-        <Button size="lg" block variant="dark" disabled={!item || !slot || insufficient} loading={busy}
+        <Button size="lg" block variant="dark" disabled={!item || !slot || insufficient || !win.ok} loading={busy}
           onClick={() => (needsPin ? (setPinError(null), setPinOpen(true)) : order())}>
           <span className="whitespace-nowrap">{item ? <>Commander{slot ? ` · ${time(slot)}` : ""} <span className="text-lime">·</span> {fcfa(total)}</> : "Choisis ton plat"}</span>
         </Button>

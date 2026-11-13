@@ -1,15 +1,16 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { BellRing, ChefHat, Check, Clock, PackageCheck } from "lucide-react";
-import { rpc } from "@/lib/supabase/client";
+import { BellRing, ChefHat, Check, Clock, PackageCheck, Pause, Play } from "lucide-react";
+import { rpc, supabase } from "@/lib/supabase/client";
 import { Badge, Empty, PageTitle, Segmented } from "@/components/admin/ui";
 import { Bitmoji } from "@/components/bitmoji";
 import { DishImage } from "@/components/app/dish-image";
 import { useToast } from "@/components/ui/toast";
 import { addDays, dayLong, time, todayISO } from "@/lib/format";
 import { say, soundOk } from "@/lib/scan-sounds";
-import type { Extra } from "@/lib/types";
+import { SERVICES, type Extra, type ServiceKind } from "@/lib/types";
+import { fetchServices, type Services } from "@/lib/menu";
 
 type Order = {
   id: string; no: number; client: string; short_code: string | null; avatar: string | null; user_id: string;
@@ -76,6 +77,8 @@ export default function KitchenOrders() {
 
   return (
     <div>
+      <OrderHours />
+
       <PageTitle title="Commandes" subtitle={`${dayLong(day)} · mise à jour automatique`}>
         <Segmented value={day === today ? "today" : "tomorrow"} onChange={(v) => setDay(v === "today" ? today : addDays(today, 1))}
           options={[["today", "Aujourd'hui"], ["tomorrow", "Demain"]]} />
@@ -152,5 +155,73 @@ export default function KitchenOrders() {
         </section>
       )}
     </div>
+  );
+}
+
+type Win = { open: string | null; close: string | null; paused?: boolean };
+
+/** Horaires de commande par repas (commandes du jour) + pause immédiate. Les précommandes pour les jours suivants restent ouvertes. */
+function OrderHours() {
+  const toast = useToast();
+  const [services, setServices] = useState<Services | null>(null);
+  const [wins, setWins] = useState<Partial<Record<ServiceKind, Win>>>({});
+  const [draft, setDraft] = useState<Partial<Record<ServiceKind, Win>>>({});
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState<ServiceKind | null>(null);
+
+  const load = useCallback(async () => {
+    const { data } = await supabase().from("settings").select("value").eq("key", "orders").maybeSingle();
+    const w = ((data?.value as { windows?: Partial<Record<ServiceKind, Win>> } | null)?.windows) ?? {};
+    setWins(w); setDraft(w);
+  }, []);
+  useEffect(() => { fetchServices().then(setServices); load(); }, [load]);
+
+  async function save(s: ServiceKind, patch: Partial<Win>) {
+    const cur = { open: null, close: null, paused: false, ...draft[s], ...patch };
+    setSaving(s);
+    const r = await rpc("set_order_window", { p_service: s, p_open: cur.open || null, p_close: cur.close || null, p_paused: !!cur.paused });
+    setSaving(null);
+    if (!r.ok) return toast("err", r.message);
+    toast("ok", patch.paused !== undefined ? (cur.paused ? "Commandes en pause." : "Commandes rouvertes.") : "Horaires enregistrés.");
+    load();
+  }
+
+  const paused = SERVICES.filter((s) => wins[s]?.paused);
+  return (
+    <section className="mb-5 rounded-3xl bg-card p-4 shadow-[var(--shadow-card)]">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between text-left">
+        <span>
+          <span className="flex items-center gap-2 font-extrabold"><Clock className="size-4" />Horaires de commande</span>
+          <span className="block text-sm font-semibold text-muted">
+            {SERVICES.filter((s) => wins[s]?.open).map((s) => `${services?.[s].label ?? s} ${wins[s]!.open!.replace(":", "h")}–${wins[s]!.close!.replace(":", "h")}`).join(" · ") || "Pas de plage : commandes ouvertes toute la journée"}
+            {paused.length > 0 && <span className="ml-1 font-extrabold text-err">· en pause : {paused.map((s) => services?.[s].label ?? s).join(", ")}</span>}
+          </span>
+        </span>
+        <span className="text-sm font-bold text-muted">{open ? "Fermer" : "Régler"}</span>
+      </button>
+      {open && (
+        <div className="mt-4 space-y-2.5">
+          <p className="text-xs font-semibold text-muted">Plage pendant laquelle on peut commander pour le jour même. Les précommandes pour les jours suivants restent possibles. Laissez vide pour ne pas limiter.</p>
+          {SERVICES.map((s) => {
+            const w = draft[s] ?? { open: null, close: null };
+            return (
+              <div key={s} className="flex flex-wrap items-center gap-2 rounded-2xl bg-canvas p-2.5">
+                <span className="w-28 text-sm font-extrabold">{services?.[s].label ?? s}</span>
+                <input type="time" value={w.open ?? ""} onChange={(e) => setDraft((d) => ({ ...d, [s]: { ...w, open: e.target.value || null } }))}
+                  className="h-9 rounded-xl border border-line bg-card px-2 text-sm font-bold" aria-label={`Ouverture ${s}`} />
+                <span className="text-sm font-bold text-muted">→</span>
+                <input type="time" value={w.close ?? ""} onChange={(e) => setDraft((d) => ({ ...d, [s]: { ...w, close: e.target.value || null } }))}
+                  className="h-9 rounded-xl border border-line bg-card px-2 text-sm font-bold" aria-label={`Fermeture ${s}`} />
+                <button disabled={saving === s} onClick={() => save(s, {})} className="h-9 rounded-full bg-ink px-4 text-sm font-bold text-white disabled:opacity-50">Enregistrer</button>
+                <button disabled={saving === s} onClick={() => save(s, { ...wins[s], paused: !wins[s]?.paused })}
+                  className={clsx("ml-auto flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-extrabold disabled:opacity-50", wins[s]?.paused ? "bg-lime text-ink" : "bg-err-soft text-err")}>
+                  {wins[s]?.paused ? <><Play className="size-4" />Rouvrir</> : <><Pause className="size-4" />Pause</>}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }

@@ -11,7 +11,7 @@ select public.simulate_recharge(20000);
 select tests.eq(jsonb_array_length(public.order_slots(:'d', 'lunch')), 12, '12 créneaux de 15 min au déjeuner');
 
 -- Commande : Attiéké (2 500) + dessert, retrait 12h30
-select public.place_order(tests.item('attieke_lunch'), :'starts'::timestamptz + interval '1 hour', array[tests.extra('dessert')]) as r \gset
+select public.place_order(tests.item('attieke_lunch'), :'starts'::timestamptz + interval '1 hour', array[tests.extra('dessert')], '2580') as r \gset
 select tests.ok((:'r'::jsonb ->> 'ok')::boolean, 'commande passée');
 select (:'r'::jsonb ->> 'ticket_id')::uuid as o1 \gset
 select tests.eq((:'r'::jsonb ->> 'total')::int, 2500 + 500, 'prix du plat + dessert');
@@ -26,19 +26,19 @@ select tests.eq((select count(*) from public.notifications n join public.profile
 select tests.login('bob');
 select public.set_pin('7391');
 select public.simulate_recharge(10000);
-select tests.code(public.place_order(tests.item('garba_lunch'), :'starts'::timestamptz + interval '7 minutes'), 'INVALID_SLOT', 'hors pas de 15 min : refusé');
-select tests.code(public.place_order(tests.item('garba_lunch'), :'starts'::timestamptz + interval '4 hours'), 'INVALID_SLOT', 'après la fin du service : refusé');
-select tests.code(public.place_order(tests.item('garba_lunch'), now() + interval '5 minutes'), 'INVALID_SLOT', 'autre jour que le plat : refusé');
+select tests.code(public.place_order(tests.item('garba_lunch'), :'starts'::timestamptz + interval '7 minutes', '{}', '7391'), 'INVALID_SLOT', 'hors pas de 15 min : refusé');
+select tests.code(public.place_order(tests.item('garba_lunch'), :'starts'::timestamptz + interval '4 hours', '{}', '7391'), 'INVALID_SLOT', 'après la fin du service : refusé');
+select tests.code(public.place_order(tests.item('garba_lunch'), now() + interval '5 minutes', '{}', '7391'), 'INVALID_SLOT', 'autre jour que le plat : refusé');
 -- Attiéké : 2 portions prévues, 1 réservée → la 2e passe, la 3e est refusée
-select tests.ok((public.place_order(tests.item('attieke_lunch'), :'starts'::timestamptz + interval '1 hour') ->> 'ok')::boolean, 'dernière portion réservée');
+select tests.ok((public.place_order(tests.item('attieke_lunch'), :'starts'::timestamptz + interval '1 hour', '{}', '7391') ->> 'ok')::boolean, 'dernière portion réservée');
 select tests.login('alice');
-select tests.code(public.place_order(tests.item('attieke_lunch'), :'starts'::timestamptz), 'SOLD_OUT', 'plat épuisé par les commandes');
+select tests.code(public.place_order(tests.item('attieke_lunch'), :'starts'::timestamptz, '{}', '2580'), 'SOLD_OUT', 'plat épuisé par les commandes');
 
 -- Créneau complet
 select tests.as_service();
 update public.settings set value = jsonb_set(value, '{slot_capacity}', '2') where key = 'orders';
 select tests.login('alice');
-select tests.code(public.place_order(tests.item('garba_lunch'), :'starts'::timestamptz + interval '1 hour'), 'SLOT_FULL', 'créneau complet');
+select tests.code(public.place_order(tests.item('garba_lunch'), :'starts'::timestamptz + interval '1 hour', '{}', '2580'), 'SLOT_FULL', 'créneau complet');
 select tests.eq((select (s ->> 'left')::int from jsonb_array_elements(public.order_slots(:'d', 'lunch')) s
                   where (s ->> 'at')::timestamptz = :'starts'::timestamptz + interval '1 hour'), 0, 'créneau affiché complet');
 select tests.as_service();
@@ -73,13 +73,13 @@ select tests.ok((select dish_id is not null from public.tickets where id = :'o1'
 
 -- Annulation avant 10h : remboursée, portion libérée
 select tests.login('alice');
-select public.place_order(tests.item('garba_lunch'), :'starts'::timestamptz + interval '2 hours') ->> 'ticket_id' as o2 \gset
+select public.place_order(tests.item('garba_lunch'), :'starts'::timestamptz + interval '2 hours', '{}', '2580') ->> 'ticket_id' as o2 \gset
 select balance as before from public.wallets where user_id = tests.uid('alice') \gset
 select tests.ok((public.cancel_ticket(:'o2') ->> 'ok')::boolean, 'annulation avant l''heure limite');
 select tests.eq((select balance from public.wallets where user_id = tests.uid('alice')), :before + 1500, 'remboursée');
 
 -- Pas trop tôt au comptoir
-select public.place_order(tests.item('garba_lunch'), :'starts'::timestamptz + interval '2 hours') ->> 'ticket_id' as o3 \gset
+select public.place_order(tests.item('garba_lunch'), :'starts'::timestamptz + interval '2 hours', '{}', '2580') ->> 'ticket_id' as o3 \gset
 select tests.as_service();
 select qr_nonce as n3 from public.tickets where id = :'o3' \gset
 select tests.code(public.redeem_ticket(:'o3', :'n3', tests.uid('agent'), :'d', 'lunch'), 'TOO_EARLY', 'commande pas prête et créneau pas atteint');
