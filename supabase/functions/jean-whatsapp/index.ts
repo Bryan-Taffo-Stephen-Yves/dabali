@@ -32,7 +32,7 @@ async function sendWhatsApp(cfg: Cfg, phone: string, message: string, userId: st
   if (btns.length) {
     const r = await fetch(`${base}/sendInteractiveButtonsReply/${token}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chatId, body: message.slice(0, 1000), footer: "Touche un bouton, ou réponds 1, 2 ou 3.",
+      body: JSON.stringify({ chatId, body: message.slice(0, 1000), footer: "Touche un bouton, ou réponds avec le numéro de ton choix.",
         buttons: btns.map((b, i) => ({ buttonId: String(i + 1), buttonText: b })) }),
     }).catch(() => null);
     sent = !!r?.ok;
@@ -182,9 +182,22 @@ const setState = (phone: string, step: string, data: unknown) =>
   db.from("whatsapp_state").upsert({ phone, step, data, updated_at: new Date().toISOString() });
 const clearState = (phone: string) => db.from("whatsapp_state").delete().eq("phone", phone);
 
-/** Choix du client : numéro (1, 2…) ou texte d'un bouton */
+/** Heure écrite par le client → "HH:MM" (13h45, 13:45, 14h, midi, midi et demi), ou null */
+function typedTime(text: string): string | null {
+  const t = text.toLowerCase().replace(/🕐/g, "").trim();
+  if (/^midi( et demi(e)?)?$/.test(t)) return t.includes("demi") ? "12:30" : "12:00";
+  const m = t.match(/^(?:a\s+|à\s+|vers\s+)?(\d{1,2})\s*(?:h|:|heures?)\s*(\d{2})?$/);
+  if (!m) return null;
+  const h = Number(m[1]), mi = Number(m[2] ?? 0);
+  if (h > 23 || mi > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+}
+
+/** Choix du client : heure écrite, numéro (1, 2…) ou texte d'un bouton */
 function pick(text: string, opts: Opt[]): Opt | null {
   const t = text.trim();
+  const tt = typedTime(t);
+  if (tt) return opts.find((o) => typeof o.value === "string" && o.value.slice(11, 16) === tt) ?? null;
   const n = t.match(/^(\d{1,2})\b/);
   if (n) return opts[Number(n[1]) - 1] ?? null;
   return opts.find((o) => o.label === t || o.btn === t || o.label.trim().slice(0, 20) === t || short(o.label) === t) ?? null;
@@ -277,11 +290,15 @@ async function continueOrder(ctx: Ctx, phone: string, text: string, st: { step: 
     const c = chosen ?? (st.data.opts as Opt[]).find((o) => short(o.value.name) === text.trim()) ?? null;
     if (!c) return null;
     const { data } = await db.rpc("order_slots", { p_date: c.value.date, p_service: c.value.service });
-    const slots = ((data ?? []) as { at: string; left: number }[]).filter((x) => x.left > 0).slice(0, 9);
+    const slots = ((data ?? []) as { at: string; left: number }[]).filter((x) => x.left > 0).slice(0, 16);
     if (!slots.length) { await clearState(phone); return { text: "Plus de créneau libre pour ce repas 😕", buttons: ["🛒 Commander"] }; }
     const opts: Opt[] = slots.map((x) => ({ label: `🕐 ${hhmm(x.at)}`, value: x.at }));
     await setState(phone, "slot", { item: c.value, opts });
-    return { text: `*${c.value.name}* (${fcfa(c.value.price)}) ✅\nTu passes le prendre à quelle heure ?\n\n${numbered(opts)}`, buttons: opts.slice(0, 3).map((o) => o.label) };
+    return { text: `*${c.value.name}* (${fcfa(c.value.price)}) ✅\nTu passes le prendre à quelle heure ?\n\n${numbered(opts)}\n\nRéponds avec le numéro ou écris l'heure (ex. 13h45).`, buttons: opts.slice(0, 3).map((o) => o.label) };
+  }
+  if (st.step === "slot" && !chosen && typedTime(text)) {
+    return { text: `${typedTime(text)!.replace(":", "h")} n'est pas libre (ou hors des heures du repas). Choisis une heure de la liste :\n\n${numbered(st.data.opts)}`,
+      buttons: (st.data.opts as Opt[]).slice(0, 3).map((o) => o.label) };
   }
   if (st.step === "slot" && chosen) {
     const it = st.data.item;
@@ -291,7 +308,7 @@ async function continueOrder(ctx: Ctx, phone: string, text: string, st: { step: 
   if (st.step === "confirm") {
     if (plain.includes("changer")) {
       const { data } = await db.rpc("order_slots", { p_date: st.data.item.date, p_service: st.data.item.service });
-      const opts: Opt[] = ((data ?? []) as { at: string; left: number }[]).filter((x) => x.left > 0).slice(0, 9).map((x) => ({ label: `🕐 ${hhmm(x.at)}`, value: x.at }));
+      const opts: Opt[] = ((data ?? []) as { at: string; left: number }[]).filter((x) => x.left > 0).slice(0, 16).map((x) => ({ label: `🕐 ${hhmm(x.at)}`, value: x.at }));
       await setState(phone, "slot", { item: st.data.item, opts });
       return { text: `D'accord, quelle heure ?\n\n${numbered(opts)}`, buttons: opts.slice(0, 3).map((o) => o.label) };
     }
