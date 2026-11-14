@@ -9,7 +9,7 @@ import { ServiceIcon } from "@/components/app/service-icon";
 import { DishImage } from "@/components/app/dish-image";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
-import { PinPad } from "@/components/ui/pin-pad";
+import { BiometricConfirm } from "@/components/app/biometric-confirm";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/components/app/app-data";
 import { buzz } from "@/lib/confetti";
@@ -42,7 +42,7 @@ function Order() {
   const router = useRouter();
   const params = useSearchParams();
   const toast = useToast();
-  const { balance, refresh } = useAppData();
+  const { balance, refresh, profile } = useAppData();
   const today = todayISO();
   const [items, setItems] = useState<MenuItem[] | null>(null);
   const [services, setServices] = useState<Services | null>(null);
@@ -270,7 +270,7 @@ function Order() {
 
       <Sheet open={pinOpen} onClose={() => setPinOpen(false)} title="Confirmer la commande">
         <p className="-mt-2 mb-4 text-sm text-muted">{item?.dish.name}{chosenExtras.length ? ` + ${chosenExtras.map((e) => e.name).join(" + ")}` : ""} · retrait {slot ? time(slot) : ""} · <b className="text-ink">{fcfa(total)}</b></p>
-        <PinPad onComplete={(p) => order(p)} error={pinError} busy={busy} />
+        <BiometricConfirm enabled={!!profile?.biometric_enabled} mode="send" onConfirmed={(p) => order(p)} pinError={pinError} busy={busy} />
       </Sheet>
 
       {done && (

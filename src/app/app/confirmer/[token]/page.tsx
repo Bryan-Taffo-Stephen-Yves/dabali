@@ -5,7 +5,7 @@ import { Clock, MessageCircle, XCircle } from "lucide-react";
 import { rpc, supabase } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/app/page-header";
 import { DishImage } from "@/components/app/dish-image";
-import { PinPad } from "@/components/ui/pin-pad";
+import { BiometricConfirm } from "@/components/app/biometric-confirm";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/components/app/app-data";
@@ -23,7 +23,7 @@ export default function ConfirmOrder({ params }: { params: Promise<{ token: stri
   const { token } = use(params);
   const router = useRouter();
   const toast = useToast();
-  const { refresh } = useAppData();
+  const { refresh, profile } = useAppData();
   const [req, setReq] = useState<Req | null | undefined>(undefined);
   const [extras, setExtras] = useState<{ id: string; name: string; price: number }[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -93,8 +93,8 @@ export default function ConfirmOrder({ params }: { params: Promise<{ token: stri
               <p className="mt-5 rounded-2xl bg-warn-soft px-4 py-3 text-center text-sm font-bold">Cette demande a expiré ou a déjà été traitée. Redemande à Jean.</p>
             ) : (
               <>
-                <p className="mb-3 mt-6 text-center text-sm font-semibold text-muted">Tape ton code PIN pour confirmer et payer.</p>
-                <PinPad onComplete={confirm} error={err} busy={busy} />
+                <p className="mb-3 mt-6 text-center text-sm font-semibold text-muted">{profile?.biometric_enabled ? "Confirme et paie d'un regard." : "Tape ton code PIN pour confirmer et payer."}</p>
+                <BiometricConfirm enabled={!!profile?.biometric_enabled} mode="send" onConfirmed={confirm} pinError={err} busy={busy} />
                 <Button variant="ghost" block className="mt-3 text-err" onClick={cancel}>Ce n&apos;est pas moi / annuler</Button>
               </>
             )}

@@ -36,6 +36,17 @@ select tests.ok((public.confirm_order_request(:'t', '2580') ->> 'ok')::boolean, 
 select tests.ok((public.confirm_order_request(:'t', '2580') ->> 'already')::boolean, 'pas de double commande');
 select tests.eq((select count(*) from public.tickets where user_id = tests.uid('alice') and pickup_at is not null)::int, 1, 'une seule commande créée');
 
+-- Confirmation par Face ID (autorisation de 2 min, à usage unique) au lieu du PIN
+select tests.as_service();
+insert into public.order_requests (user_id, menu_item_id, pickup_at) values (tests.uid('alice'), tests.item('garba_lunch'), :'starts'::timestamptz + interval '90 minutes')
+  returning token as tb \gset
+select tests.login('alice');
+select tests.code(public.confirm_order_request(:'tb', 'BIOMETRIC'), 'BIOMETRIC_REQUIRED', 'Face ID non vérifié : refusé');
+select tests.as_service();
+update public.profiles set biometric_ok_until = now() + interval '2 minutes' where id = tests.uid('alice');
+select tests.login('alice');
+select tests.ok((public.confirm_order_request(:'tb', 'BIOMETRIC') ->> 'ok')::boolean, 'confirmée d''un regard (Face ID)');
+
 -- Demande expirée
 select tests.as_service();
 insert into public.order_requests (user_id, menu_item_id, pickup_at, expires_at) values (tests.uid('alice'), tests.item('garba_lunch'), :'starts'::timestamptz + interval '2 hours', now() - interval '1 minute')
@@ -46,7 +57,7 @@ select tests.code(public.confirm_order_request(:'t2', '2580'), 'EXPIRED', 'deman
 -- Rappel 35 min avant la fin du service
 select tests.as_service();
 update public.tickets set pickup_at = now(), valid_until = now() + interval '30 minutes'
- where user_id = tests.uid('alice') and pickup_at is not null;
+ where id = (select id from public.tickets where user_id = tests.uid('alice') and pickup_at is not null order by created_at limit 1);
 select tests.eq(public.remind_order_pickups(), 1, 'rappel envoyé 35 min avant la fin');
 select tests.eq(public.remind_order_pickups(), 0, 'une seule fois');
 select tests.ok(exists (select 1 from public.notifications where user_id = tests.uid('alice') and type = 'order_pickup_reminder' and body like '%Garba%'), 'le rappel nomme le plat');
