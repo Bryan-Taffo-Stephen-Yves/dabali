@@ -48,8 +48,11 @@ const FUNCS: { name: string; description: string; parameters: unknown; speak?: s
     speak: "Je prépare ta commande." },
 ];
 
+// Clé Retell : RETELL_API_KEY, ou à défaut CLI_ANHTROPIC (nom choisi au départ)
+const retellKey = () => Deno.env.get("RETELL_API_KEY") ?? Deno.env.get("CLI_ANHTROPIC") ?? "";
+
 async function retell(path: string, init: RequestInit = {}) {
-  const r = await fetch(`${API}${path}`, { ...init, headers: { Authorization: `Bearer ${Deno.env.get("RETELL_API_KEY")}`, "Content-Type": "application/json", ...(init.headers ?? {}) } });
+  const r = await fetch(`${API}${path}`, { ...init, headers: { Authorization: `Bearer ${retellKey()}`, "Content-Type": "application/json", ...(init.headers ?? {}) } });
   const text = await r.text();
   let body: unknown = text; try { body = JSON.parse(text); } catch { /* texte */ }
   return { status: r.status, body };
@@ -59,19 +62,29 @@ Deno.serve(async (req) => {
   const internal = req.headers.get("x-jean-secret");
   const { data: secret } = await db.rpc("_jean_secret");
   if (!internal || !secret || internal !== secret) return new Response("unauthorized", { status: 401 });
-  if (!Deno.env.get("RETELL_API_KEY")) return Response.json({ ok: false, erreur: "Secret RETELL_API_KEY manquant." });
+  const k = retellKey();
+  if (!k) return Response.json({ ok: false, erreur: "Secret RETELL_API_KEY manquant." });
+  if (k.startsWith("sk-ant")) return Response.json({ ok: false, erreur: "La clé trouvée est une clé Anthropic (sk-ant…), pas une clé Retell." });
   const token = Deno.env.get("JEAN_VOICE_TOKEN");
   if (!token) return Response.json({ ok: false, erreur: "Secret JEAN_VOICE_TOKEN manquant." });
   const body = await req.json().catch(() => ({}));
   const name = String(body.agent_name ?? "Dabalix - Réservation de repas");
 
-  const agents = await retell("/list-agents");
-  if (agents.status !== 200 || !Array.isArray(agents.body)) return Response.json({ ok: false, etape: "list-agents", ...agents });
+  // Liste des agents (API v2 depuis le 31/07/2026 : POST /v2/list-agents, résultats dans « items »)
+  const agents = await retell("/v2/list-agents", { method: "POST", body: JSON.stringify({}) });
+  const b0 = agents.body as any;
+  const all: any[] = Array.isArray(b0) ? b0 : (b0?.items ?? b0?.agents ?? b0?.data ?? []);
+  if (agents.status >= 300 || !Array.isArray(all)) return Response.json({ ok: false, etape: "list-agents", ...agents });
   // Dernière version de l'agent portant ce nom
-  const list = (agents.body as any[]).filter((a) => a.agent_name === name).sort((a, b) => (b.version ?? 0) - (a.version ?? 0));
+  const list = all.filter((a) => a.agent_name === name).sort((a, b) => (b.version ?? 0) - (a.version ?? 0));
   const agent = list[0];
-  if (!agent) return Response.json({ ok: false, erreur: `Agent « ${name} » introuvable.`, agents: (agents.body as any[]).map((a) => a.agent_name) });
-  const engine = agent.response_engine ?? {};
+  if (!agent) return Response.json({ ok: false, erreur: `Agent « ${name} » introuvable.`, agents: all.map((a) => a.agent_name), cles: Object.keys(b0 ?? {}) });
+  let engine = agent.response_engine;
+  if (!engine) {
+    const full = await retell(`/get-agent/${agent.agent_id}`);
+    engine = (full.body as any)?.response_engine;
+    if (!engine) return Response.json({ ok: false, etape: "get-agent", ...full });
+  }
   if (engine.type !== "retell-llm") return Response.json({ ok: false, erreur: `Type d'agent non pris en charge : ${engine.type}`, agent_id: agent.agent_id });
 
   const tools = [
