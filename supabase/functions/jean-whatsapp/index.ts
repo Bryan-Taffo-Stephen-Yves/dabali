@@ -262,61 +262,70 @@ async function fastMenuTomorrow(): Promise<Fast> {
   return { text: `📅 *Menu de demain*\n\n${parts.join("\n\n")}`, buttons: ["🛒 Commander", "💰 Mon solde"] };
 }
 
+/** Heures en grille compacte : 4 par ligne */
+const grid = (opts: Opt[]) => opts.map((o, i) => `*${i + 1}.* ${o.label.replace("🕐 ", "")}`)
+  .reduce((rows: string[], s, i) => { if (i % 4 === 0) rows.push(s); else rows[rows.length - 1] += `   ${s}`; return rows; }, []).join("\n");
+
+/** Commander : tous les plats commandables d'un coup (repas inclus), un seul choix */
 async function startOrder(phone: string): Promise<Fast> {
-  const meals = (await orderableMeals()).slice(0, 6);
+  const meals = (await orderableMeals()).slice(0, 4);
   if (!meals.length) { await clearState(phone); return { text: "Aucun repas ne peut être commandé pour le moment (menu pas publié, ou commandes fermées par la cuisine) 🙏", buttons: ["🍽️ Menu du jour"] }; }
-  const opts: Opt[] = meals.map((m) => ({ label: m.label, btn: m.btn, value: { date: m.date, service: m.service } }));
-  await setState(phone, "meal", { opts });
-  return { text: `🛒 Pour quel repas ?\n\n${numbered(opts)}\n\nRéponds avec le numéro.`, buttons: opts.slice(0, 3).map((o) => o.btn ?? o.label) };
+  const { data } = await db.from("menu_items").select("id, service_date, service, price, is_sold_out, is_full, dish:dishes(name), menu:menus!inner(status)")
+    .eq("menu.status", "published").in("service_date", [...new Set(meals.map((m) => m.date))]).order("price", { ascending: false });
+  const opts: Opt[] = []; const blocks: string[] = [];
+  for (const m of meals) {
+    const items = (data ?? []).filter((r: any) => r.service_date === m.date && r.service === m.service && !(r.is_sold_out || r.is_full));
+    if (!items.length) continue;
+    const from = opts.length;
+    for (const r of items as any[]) opts.push({ label: `${r.dish?.name} · ${fcfa(r.price)}`, value: { id: r.id, name: r.dish?.name, price: r.price, date: m.date, service: m.service } });
+    blocks.push(`${meals.length > 1 ? `*${m.label}*\n` : ""}${opts.slice(from).map((o, i) => `*${from + i + 1}.* ${o.label}`).join("\n")}`);
+    if (opts.length >= 12) break;
+  }
+  if (!opts.length) { await clearState(phone); return { text: "Tous les plats sont épuisés pour le moment 😕", buttons: ["🍽️ Menu du jour"] }; }
+  await setState(phone, "dish", { opts });
+  const title = meals.length === 1 ? `🛒 ${meals[0].label} : quel plat ?` : "🛒 Quel plat veux-tu ?";
+  return { text: `${title}\n\n${blocks.join("\n\n")}\n\n_Astuce : écris « 1 13h » pour choisir le plat et l'heure d'un coup._`, buttons: opts.slice(0, 3).map((o) => short(o.value.name)) };
+}
+
+/** Prépare la demande et envoie récap + lien de confirmation (dernier message du parcours) */
+async function finishOrder(ctx: Ctx, phone: string, it: any, at: string): Promise<Fast> {
+  const r = (await runTool(ctx, "preparer_commande", { menu_item_id: it.id, heure_retrait: at.slice(11, 16), supplement_ids: [] })) as any;
+  await clearState(phone);
+  if (r.erreur) return { text: `😕 ${r.erreur}`, buttons: ["🛒 Commander"] };
+  return { text: `${SVC_ICON[it.service] ?? "🍽️"} *${it.name}* · ${fcfa(it.price)}\n📅 ${dayWord(it.date)}, retrait à *${hhmm(at)}*\n\n👉 Confirme ici (Face ID ou code PIN) :\n${r.lien_de_confirmation}\n\n⏳ Valable 15 min. Rien n'est commandé sans ta confirmation.`, buttons: [] };
+}
+
+async function slotsFor(it: any): Promise<Opt[]> {
+  const { data } = await db.rpc("order_slots", { p_date: it.date, p_service: it.service });
+  return ((data ?? []) as { at: string; left: number }[]).filter((x) => x.left > 0).slice(0, 16).map((x) => ({ label: `🕐 ${hhmm(x.at)}`, value: x.at }));
 }
 
 /** Étape suivante du parcours, ou null si le message ne correspond pas (→ l'IA prend le relais) */
 async function continueOrder(ctx: Ctx, phone: string, text: string, st: { step: string; data: any }): Promise<Fast> {
   const plain = text.toLowerCase();
   if (/^(❌|annuler|stop|non)/.test(plain) || plain.includes("annuler")) { await clearState(phone); return { text: "D'accord, c'est annulé 👍", buttons: ["🍽️ Menu du jour", "🛒 Commander"] }; }
-  const chosen = st.step === "confirm" ? null : pick(text, st.data.opts ?? []);
 
-  if (st.step === "meal" && chosen) {
-    const { date, service } = chosen.value;
-    const { data } = await db.from("menu_items").select("id, price, is_sold_out, is_full, dish:dishes(name), menu:menus!inner(status)")
-      .eq("menu.status", "published").eq("service_date", date).eq("service", service).order("price", { ascending: false });
-    const opts: Opt[] = (data ?? []).filter((r: any) => !(r.is_sold_out || r.is_full))
-      .map((r: any) => ({ label: `${r.dish?.name} · ${fcfa(r.price)}`, value: { id: r.id, name: r.dish?.name, price: r.price, date, service } }));
-    if (!opts.length) { await clearState(phone); return { text: "Tous les plats de ce repas sont épuisés 😕", buttons: ["🛒 Commander"] }; }
-    await setState(phone, "dish", { opts });
-    return { text: `${chosen.label} : quel plat ?\n\n${numbered(opts)}\n\nRéponds avec le numéro.`, buttons: opts.slice(0, 3).map((o) => short(o.value.name)) };
-  }
   if (st.step === "dish") {
-    const c = chosen ?? (st.data.opts as Opt[]).find((o) => short(o.value.name) === text.trim()) ?? null;
+    const opts = st.data.opts as Opt[];
+    const c = pick(text, opts) ?? opts.find((o) => short(o.value.name) === text.trim()) ?? null;
     if (!c) return null;
-    const { data } = await db.rpc("order_slots", { p_date: c.value.date, p_service: c.value.service });
-    const slots = ((data ?? []) as { at: string; left: number }[]).filter((x) => x.left > 0).slice(0, 16);
-    if (!slots.length) { await clearState(phone); return { text: "Plus de créneau libre pour ce repas 😕", buttons: ["🛒 Commander"] }; }
-    const opts: Opt[] = slots.map((x) => ({ label: `🕐 ${hhmm(x.at)}`, value: x.at }));
-    await setState(phone, "slot", { item: c.value, opts });
-    return { text: `*${c.value.name}* (${fcfa(c.value.price)}) ✅\nTu passes le prendre à quelle heure ?\n\n${numbered(opts)}\n\nRéponds avec le numéro ou écris l'heure (ex. 13h45).`, buttons: opts.slice(0, 3).map((o) => o.label) };
-  }
-  if (st.step === "slot" && !chosen && typedTime(text)) {
-    return { text: `${typedTime(text)!.replace(":", "h")} n'est pas libre (ou hors des heures du repas). Choisis une heure de la liste :\n\n${numbered(st.data.opts)}`,
-      buttons: (st.data.opts as Opt[]).slice(0, 3).map((o) => o.label) };
-  }
-  if (st.step === "slot" && chosen) {
-    const it = st.data.item;
-    await setState(phone, "confirm", { item: it, at: chosen.value });
-    return { text: `📋 *Récapitulatif*\n${SVC_ICON[it.service] ?? "🍽️"} ${it.name}\n📅 ${dayWord(it.date)}, retrait à *${hhmm(chosen.value)}*\n💰 *${fcfa(it.price)}*\n\nJe prépare le lien de confirmation ?`, buttons: ["✅ Oui", "🕐 Changer l'heure", "❌ Annuler"] };
-  }
-  if (st.step === "confirm") {
-    if (plain.includes("changer")) {
-      const { data } = await db.rpc("order_slots", { p_date: st.data.item.date, p_service: st.data.item.service });
-      const opts: Opt[] = ((data ?? []) as { at: string; left: number }[]).filter((x) => x.left > 0).slice(0, 16).map((x) => ({ label: `🕐 ${hhmm(x.at)}`, value: x.at }));
-      await setState(phone, "slot", { item: st.data.item, opts });
-      return { text: `D'accord, quelle heure ?\n\n${numbered(opts)}`, buttons: opts.slice(0, 3).map((o) => o.label) };
+    const slots = await slotsFor(c.value);
+    if (!slots.length) { await clearState(phone); return { text: "Plus d'heure de retrait libre pour ce repas 😕", buttons: ["🛒 Commander"] }; }
+    // Plat + heure d'un coup : « 2 13h45 », « 2 à 13h »
+    const rest = text.trim().match(/^\d{1,2}\s*[,.\-–]?\s*(.+)$/)?.[1];
+    const tt = rest ? typedTime(rest) : null;
+    if (tt) {
+      const s = slots.find((o) => o.value.slice(11, 16) === tt);
+      if (s) return finishOrder(ctx, phone, c.value, s.value);
     }
-    if (!/^(✅|oui|ok|1\b|d'accord|vas-y|go)/.test(plain)) return null;
-    const r = (await runTool(ctx, "preparer_commande", { menu_item_id: st.data.item.id, heure_retrait: st.data.at.slice(11, 16), supplement_ids: [] })) as any;
-    await clearState(phone);
-    if (r.erreur) return { text: `😕 ${r.erreur}`, buttons: ["🛒 Commander"] };
-    return { text: `C'est prêt 🙌 Ouvre ce lien pour confirmer (Face ID ou code PIN) :\n${r.lien_de_confirmation}\n\n⏳ Valable 15 minutes. Ta commande n'est passée qu'après confirmation.`, buttons: [] };
+    await setState(phone, "slot", { item: c.value, opts: slots });
+    return { text: `${tt ? `${tt.replace(":", "h")} n'est pas libre. ` : ""}*${c.value.name}* ✅ Retrait à quelle heure ?\n\n${grid(slots)}\n\nNuméro ou heure (ex. 13h45).`, buttons: slots.slice(0, 3).map((o) => o.label) };
+  }
+  if (st.step === "slot") {
+    const opts = st.data.opts as Opt[];
+    const chosen = pick(text, opts);
+    if (chosen) return finishOrder(ctx, phone, st.data.item, chosen.value);
+    if (typedTime(text)) return { text: `${typedTime(text)!.replace(":", "h")} n'est pas libre. Choisis :\n\n${grid(opts)}`, buttons: opts.slice(0, 3).map((o) => o.label) };
   }
   return null;
 }
