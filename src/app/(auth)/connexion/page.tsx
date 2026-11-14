@@ -9,6 +9,8 @@ import { homeFor } from "@/lib/roles";
 
 const DEMO = [
   { label: "Client", email: "client@dabali.ci" },
+  { label: "Client 1", email: "client01@dabali.ci" },
+  { label: "Client 2", email: "client02@dabali.ci" },
   { label: "Agent", email: "agent@dabali.ci" },
   { label: "Chef", email: "chef@dabali.ci" },
   { label: "Caisse", email: "caisse@dabali.ci" },

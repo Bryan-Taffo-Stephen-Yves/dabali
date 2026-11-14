@@ -161,6 +161,149 @@ async function runTool(ctx: Ctx, name: string, input: any): Promise<unknown> {
   return { erreur: "Outil inconnu." };
 }
 
+// ═════════════ Parcours guidé par boutons : instantané, uniquement des données réelles (pas d'IA) ═════════════
+const SVC_ICON: Record<string, string> = { breakfast: "🍳", lunch: "🍛", snack: "🥤", dinner: "🌙" };
+const DAYS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
+const dayWord = (d: string) => d === todayISO() ? "aujourd'hui" : d === new Date(Date.now() + 86400e3).toISOString().slice(0, 10) ? "demain" : `${DAYS[new Date(d + "T12:00:00Z").getUTCDay()]} ${d.slice(8, 10)}`;
+const hhmm = (iso: string) => iso.slice(11, 16).replace(":", "h");
+const short = (t: string, n = 20) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
+const SVC_SHORT: Record<string, string> = { breakfast: "Petit-déj", lunch: "Déjeuner", snack: "Snack", dinner: "Dîner" };
+const dayShortWord = (d: string) => d === todayISO() ? "auj." : d === new Date(Date.now() + 86400e3).toISOString().slice(0, 10) ? "demain" : `${DAYS[new Date(d + "T12:00:00Z").getUTCDay()]} ${d.slice(8, 10)}`;
+
+type Fast = { text: string; buttons: string[] } | null;
+type Opt = { label: string; btn?: string; value: any };
+
+async function getState(phone: string) {
+  const { data } = await db.from("whatsapp_state").select("step, data, updated_at").eq("phone", phone).maybeSingle();
+  if (!data || Date.now() - new Date(data.updated_at).getTime() > 15 * 60e3) return null;
+  return data as { step: string; data: any };
+}
+const setState = (phone: string, step: string, data: unknown) =>
+  db.from("whatsapp_state").upsert({ phone, step, data, updated_at: new Date().toISOString() });
+const clearState = (phone: string) => db.from("whatsapp_state").delete().eq("phone", phone);
+
+/** Choix du client : numéro (1, 2…) ou texte d'un bouton */
+function pick(text: string, opts: Opt[]): Opt | null {
+  const t = text.trim();
+  const n = t.match(/^(\d{1,2})\b/);
+  if (n) return opts[Number(n[1]) - 1] ?? null;
+  return opts.find((o) => o.label === t || o.btn === t || o.label.trim().slice(0, 20) === t || short(o.label) === t) ?? null;
+}
+const numbered = (opts: Opt[]) => opts.map((o, i) => `*${i + 1}.* ${o.label}`).join("\n");
+
+async function services() {
+  const [{ data: s }, { data: o }] = await Promise.all([
+    db.from("settings").select("value").eq("key", "services").single(),
+    db.from("settings").select("value").eq("key", "orders").single(),
+  ]);
+  return { svc: (s?.value ?? {}) as Record<string, { label: string; start: string; end: string }>, win: ((o?.value as any)?.windows ?? {}) as Record<string, { open?: string; close?: string; paused?: boolean }> };
+}
+
+/** Repas commandables : service pas fini ; aujourd'hui seulement dans la plage de la cuisine ; pas en pause */
+async function orderableMeals(): Promise<{ date: string; service: string; label: string; btn: string }[]> {
+  const { svc, win } = await services();
+  const now = new Date(); const today = todayISO(); const hm = now.toISOString().slice(11, 16);
+  const { data } = await db.from("menu_items").select("service_date, service, menu:menus!inner(status)")
+    .eq("menu.status", "published").gte("service_date", today).lte("service_date", new Date(Date.now() + 6 * 86400e3).toISOString().slice(0, 10));
+  const seen = new Set<string>(); const out: { date: string; service: string; label: string; btn: string }[] = [];
+  for (const r of (data ?? []).sort((a: any, b: any) => (a.service_date + (svc[a.service]?.start ?? "")).localeCompare(b.service_date + (svc[b.service]?.start ?? "")))) {
+    const k = `${r.service_date}|${r.service}`; if (seen.has(k)) continue; seen.add(k);
+    const w = win[r.service] ?? {}; const s = svc[r.service];
+    if (!s || w.paused) continue;
+    if (r.service_date === today && (hm >= s.end || (w.open && w.close && (hm < w.open || hm >= w.close)))) continue;
+    out.push({ date: r.service_date, service: r.service, label: `${SVC_ICON[r.service] ?? "🍽️"} ${s.label} ${dayWord(r.service_date)}`,
+      btn: `${SVC_ICON[r.service] ?? "🍽️"} ${SVC_SHORT[r.service] ?? s.label} ${dayShortWord(r.service_date)}` });
+  }
+  return out;
+}
+
+async function fastMenu(): Promise<Fast> {
+  const { svc } = await services();
+  const today = todayISO(); const hm = new Date().toISOString().slice(11, 16);
+  const { data } = await db.from("menu_items").select("service_date, service, price, is_sold_out, is_full, dish:dishes(name), menu:menus!inner(status)")
+    .eq("menu.status", "published").gte("service_date", today).order("service_date").limit(80);
+  const rows = (data ?? []).filter((r: any) => !(r.service_date === today && hm >= (svc[r.service]?.end ?? "24:00")));
+  if (!rows.length) return { text: "Le menu n'est pas encore publié 🙏 Reviens un peu plus tard.", buttons: ["💰 Mon solde"] };
+  const day = rows[0].service_date as string;
+  const order = ["breakfast", "lunch", "snack", "dinner"];
+  const parts = order.map((sv) => {
+    const it = rows.filter((r: any) => r.service_date === day && r.service === sv);
+    if (!it.length) return "";
+    const s = svc[sv];
+    return `${SVC_ICON[sv]} *${s?.label ?? sv}* (${s?.start.replace(":", "h")}–${s?.end.replace(":", "h")})\n` +
+      it.map((r: any) => `• ${r.dish?.name} · ${fcfa(r.price)}${r.is_sold_out || r.is_full ? " _(épuisé)_" : ""}`).join("\n");
+  }).filter(Boolean);
+  return { text: `🍽️ *Menu ${dayWord(day)}*\n\n${parts.join("\n\n")}`, buttons: ["🛒 Commander", "📅 Menu de demain", "💰 Mon solde"] };
+}
+
+async function fastMenuTomorrow(): Promise<Fast> {
+  const d = new Date(Date.now() + 86400e3).toISOString().slice(0, 10);
+  const { svc } = await services();
+  const { data } = await db.from("menu_items").select("service, price, is_sold_out, is_full, dish:dishes(name), menu:menus!inner(status)")
+    .eq("menu.status", "published").eq("service_date", d);
+  if (!data?.length) return { text: "Pas de menu publié pour demain 🙏", buttons: ["🍽️ Menu du jour", "🛒 Commander"] };
+  const parts = ["breakfast", "lunch", "snack", "dinner"].map((sv) => {
+    const it = data.filter((r: any) => r.service === sv); if (!it.length) return "";
+    return `${SVC_ICON[sv]} *${svc[sv]?.label ?? sv}*\n` + it.map((r: any) => `• ${r.dish?.name} · ${fcfa(r.price)}`).join("\n");
+  }).filter(Boolean);
+  return { text: `📅 *Menu de demain*\n\n${parts.join("\n\n")}`, buttons: ["🛒 Commander", "💰 Mon solde"] };
+}
+
+async function startOrder(phone: string): Promise<Fast> {
+  const meals = (await orderableMeals()).slice(0, 6);
+  if (!meals.length) { await clearState(phone); return { text: "Aucun repas ne peut être commandé pour le moment (menu pas publié, ou commandes fermées par la cuisine) 🙏", buttons: ["🍽️ Menu du jour"] }; }
+  const opts: Opt[] = meals.map((m) => ({ label: m.label, btn: m.btn, value: { date: m.date, service: m.service } }));
+  await setState(phone, "meal", { opts });
+  return { text: `🛒 Pour quel repas ?\n\n${numbered(opts)}\n\nRéponds avec le numéro.`, buttons: opts.slice(0, 3).map((o) => o.btn ?? o.label) };
+}
+
+/** Étape suivante du parcours, ou null si le message ne correspond pas (→ l'IA prend le relais) */
+async function continueOrder(ctx: Ctx, phone: string, text: string, st: { step: string; data: any }): Promise<Fast> {
+  const plain = text.toLowerCase();
+  if (/^(❌|annuler|stop|non)/.test(plain) || plain.includes("annuler")) { await clearState(phone); return { text: "D'accord, c'est annulé 👍", buttons: ["🍽️ Menu du jour", "🛒 Commander"] }; }
+  const chosen = st.step === "confirm" ? null : pick(text, st.data.opts ?? []);
+
+  if (st.step === "meal" && chosen) {
+    const { date, service } = chosen.value;
+    const { data } = await db.from("menu_items").select("id, price, is_sold_out, is_full, dish:dishes(name), menu:menus!inner(status)")
+      .eq("menu.status", "published").eq("service_date", date).eq("service", service).order("price", { ascending: false });
+    const opts: Opt[] = (data ?? []).filter((r: any) => !(r.is_sold_out || r.is_full))
+      .map((r: any) => ({ label: `${r.dish?.name} · ${fcfa(r.price)}`, value: { id: r.id, name: r.dish?.name, price: r.price, date, service } }));
+    if (!opts.length) { await clearState(phone); return { text: "Tous les plats de ce repas sont épuisés 😕", buttons: ["🛒 Commander"] }; }
+    await setState(phone, "dish", { opts });
+    return { text: `${chosen.label} : quel plat ?\n\n${numbered(opts)}\n\nRéponds avec le numéro.`, buttons: opts.slice(0, 3).map((o) => short(o.value.name)) };
+  }
+  if (st.step === "dish") {
+    const c = chosen ?? (st.data.opts as Opt[]).find((o) => short(o.value.name) === text.trim()) ?? null;
+    if (!c) return null;
+    const { data } = await db.rpc("order_slots", { p_date: c.value.date, p_service: c.value.service });
+    const slots = ((data ?? []) as { at: string; left: number }[]).filter((x) => x.left > 0).slice(0, 9);
+    if (!slots.length) { await clearState(phone); return { text: "Plus de créneau libre pour ce repas 😕", buttons: ["🛒 Commander"] }; }
+    const opts: Opt[] = slots.map((x) => ({ label: `🕐 ${hhmm(x.at)}`, value: x.at }));
+    await setState(phone, "slot", { item: c.value, opts });
+    return { text: `*${c.value.name}* (${fcfa(c.value.price)}) ✅\nTu passes le prendre à quelle heure ?\n\n${numbered(opts)}`, buttons: opts.slice(0, 3).map((o) => o.label) };
+  }
+  if (st.step === "slot" && chosen) {
+    const it = st.data.item;
+    await setState(phone, "confirm", { item: it, at: chosen.value });
+    return { text: `📋 *Récapitulatif*\n${SVC_ICON[it.service] ?? "🍽️"} ${it.name}\n📅 ${dayWord(it.date)}, retrait à *${hhmm(chosen.value)}*\n💰 *${fcfa(it.price)}*\n\nJe prépare le lien de confirmation ?`, buttons: ["✅ Oui", "🕐 Changer l'heure", "❌ Annuler"] };
+  }
+  if (st.step === "confirm") {
+    if (plain.includes("changer")) {
+      const { data } = await db.rpc("order_slots", { p_date: st.data.item.date, p_service: st.data.item.service });
+      const opts: Opt[] = ((data ?? []) as { at: string; left: number }[]).filter((x) => x.left > 0).slice(0, 9).map((x) => ({ label: `🕐 ${hhmm(x.at)}`, value: x.at }));
+      await setState(phone, "slot", { item: st.data.item, opts });
+      return { text: `D'accord, quelle heure ?\n\n${numbered(opts)}`, buttons: opts.slice(0, 3).map((o) => o.label) };
+    }
+    if (!/^(✅|oui|ok|1\b|d'accord|vas-y|go)/.test(plain)) return null;
+    const r = (await runTool(ctx, "preparer_commande", { menu_item_id: st.data.item.id, heure_retrait: st.data.at.slice(11, 16), supplement_ids: [] })) as any;
+    await clearState(phone);
+    if (r.erreur) return { text: `😕 ${r.erreur}`, buttons: ["🛒 Commander"] };
+    return { text: `C'est prêt 🙌 Ouvre ce lien pour confirmer (Face ID ou code PIN) :\n${r.lien_de_confirmation}\n\n⏳ Valable 15 minutes. Ta commande n'est passée qu'après confirmation.`, buttons: [] };
+  }
+  return null;
+}
+
 const SYSTEM = `Tu es Jean, l'assistant WhatsApp de la cantine Dabali (école hôtelière, Abidjan). Tu parles comme un humain chaleureux et efficace, en français simple (tu comprends aussi le nouchi et les fautes), avec des messages COURTS adaptés à WhatsApp (2 à 5 lignes, *gras* WhatsApp avec des astérisques si utile, pas de tableaux).
 
 Ce que tu fais, uniquement avec tes outils : donner le solde, le menu, les heures de retrait libres, l'état des commandes, et préparer une commande.
@@ -290,7 +433,22 @@ async function handleIncoming(body: any, dry = false) {
     await sendWhatsApp(cfg, phone, `Tu as *${s0.solde_texte}* sur ton compte et *${s0.points} points* de fidélité 💰\nPour recharger : ${APP}/app/recharger`, link.user_id, ["🍽️ Menu du jour", "🛒 Commander"]);
     return;
   }
-  const reply = await agentReply({ userId: link.user_id, name: p.full_name }, phone, voice ? `(note vocale transcrite) ${text}` : text);
+  // Parcours guidé (boutons) : instantané, sans IA
+  const ctx: Ctx = { userId: link.user_id, name: p.full_name };
+  let fast: Fast = null;
+  if (/^(menu du jour|menu|le menu|menu aujourd hui)$/.test(plain)) fast = await fastMenu();
+  else if (/^(menu de demain|menu demain)$/.test(plain)) fast = await fastMenuTomorrow();
+  else if (/^(commander|je veux commander|commande|passer une commande)$/.test(plain)) fast = await startOrder(phone);
+  else if (/^(mes commandes)$/.test(plain)) {
+    const r = (await runTool(ctx, "mes_commandes", {})) as any;
+    fast = { text: r.commandes.length ? "📦 *Tes commandes*\n\n" + r.commandes.map((c: any) => `*n° ${c.numero}* · ${c.plat}\nRetrait ${dayWord(String(c.retrait).slice(0, 10))} à ${hhmm(c.retrait)} · _${c.etat}_`).join("\n\n") : "Tu n'as pas de commande en cours.", buttons: ["🛒 Commander", "🍽️ Menu du jour"] };
+  } else {
+    const st = await getState(phone);
+    if (st) fast = await continueOrder(ctx, phone, text, st);
+  }
+  if (fast) { await sendWhatsApp(cfg, phone, fast.text, link.user_id, fast.buttons); return; }
+  await clearState(phone); // message libre : l'IA reprend la main
+  const reply = await agentReply(ctx, phone, voice ? `(note vocale transcrite) ${text}` : text);
   await sendWhatsApp(cfg, phone, reply.text, link.user_id, reply.buttons);
 }
 
