@@ -29,7 +29,10 @@ export async function rpc<T = Record<string, unknown>>(fn: string, args: Record<
   if (isOffline()) return { ok: false, code: "OFFLINE", message: OFFLINE };
   try {
     const { data, error } = await supabase().rpc(fn, args);
-    if (error) return { ok: false, code: "NETWORK", message: humanError(error.message) };
+    if (error) {
+      if (/BIOMETRIC_REQUIRED/.test(error.message)) return { ok: false, code: "BIOMETRIC_REQUIRED", message: "Confirmez avec Face ID (ou votre code PIN)." };
+      return { ok: false, code: "NETWORK", message: humanError(error.message) };
+    }
     return data as RpcResult<T>;
   } catch {
     return { ok: false, code: "NETWORK", message: OFFLINE };

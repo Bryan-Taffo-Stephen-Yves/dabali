@@ -6,7 +6,8 @@ import { PushToggle } from "@/components/push-toggle";
 import { InstallApp } from "@/components/install-app";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { LogOut, KeyRound, Bell, Sparkles, Gift, ChevronRight, LayoutDashboard, ScanLine, PhoneOff, Smartphone } from "lucide-react";
+import { LogOut, KeyRound, Bell, Sparkles, Gift, ChevronRight, LayoutDashboard, ScanLine, PhoneOff, Smartphone, ScanFace } from "lucide-react";
+import { biometricLabel, biometricSupported, disableBiometric, enableBiometric, prepareBiometric, prepareEnable } from "@/lib/biometric";
 import { syncTokens } from "@/lib/tickets";
 import { rpc, supabase } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/app/page-header";
@@ -46,6 +47,23 @@ export default function ProfilePage() {
   // Téléphone perdu ou volé : nouveaux QR, autres appareils déconnectés (celui-ci reste connecté)
   const [lostOpen, setLostOpen] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
+  // Face ID / empreinte
+  const [bioOk, setBioOk] = useState<boolean | null>(null);
+  const [bioBusy, setBioBusy] = useState(false);
+  useEffect(() => { biometricSupported().then(setBioOk); }, []);
+  useEffect(() => {
+    if (!bioOk || !profile) return;
+    void (profile.biometric_enabled ? prepareBiometric() : prepareEnable());
+  }, [bioOk, profile]);
+  async function toggleBiometric() {
+    if (!profile || bioBusy) return;
+    setBioBusy(true);
+    const r = profile.biometric_enabled ? await disableBiometric() : await enableBiometric();
+    setBioBusy(false);
+    if (!r.ok) return toast("err", r.message);
+    await refresh();
+    toast("ok", profile.biometric_enabled ? `${biometricLabel()} désactivé.` : `${biometricLabel()} activé : l'appli et les paiements sont protégés.`);
+  }
   async function pickAvatar(id: string) {
     if (!profile) return;
     setPickOpen(false);
@@ -132,6 +150,11 @@ export default function ProfilePage() {
             right={<span className={clsx("h-7 w-12 rounded-full p-1 transition", profile?.notify_free_seats ? "bg-ink" : "bg-line")}>
               <span className={clsx("block size-5 rounded-full transition", profile?.notify_free_seats ? "translate-x-5 bg-lime" : "bg-white")} /></span>}
             onClick={toggleSeats} />
+          <Row icon={ScanFace} label={`Protéger avec ${biometricLabel()}`}
+            hint={bioOk === false ? "Non disponible sur cet appareil" : "Ouverture de l'appli, recharges, transferts, cadeaux et gros achats"}
+            right={<span className={clsx("h-7 w-12 rounded-full p-1 transition", profile?.biometric_enabled ? "bg-ink" : "bg-line", bioBusy && "opacity-50")}>
+              <span className={clsx("block size-5 rounded-full transition", profile?.biometric_enabled ? "translate-x-5 bg-lime" : "bg-white")} /></span>}
+            onClick={() => (bioOk ? toggleBiometric() : toast("err", "Face ID ou empreinte non disponible sur cet appareil."))} />
           <WhatsAppLink autoOpen={waOpen} />
           <Row icon={KeyRound} label="Changer mon code PIN" hint="Il sert aussi à manger sans téléphone" onClick={() => { setPinErr(null); setPinStep("old"); }} />
           <Row icon={PhoneOff} label="J'ai perdu mon téléphone" hint="Bloquer les QR et déconnecter l'ancien appareil" onClick={() => setLostOpen(true)} />

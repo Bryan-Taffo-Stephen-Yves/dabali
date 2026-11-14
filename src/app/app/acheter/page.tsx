@@ -11,7 +11,7 @@ import { ServiceBadge } from "@/components/app/service-icon";
 import { RecipientSheet, type Recipient } from "@/components/app/recipient-sheet";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
-import { PinPad } from "@/components/ui/pin-pad";
+import { BiometricConfirm } from "@/components/app/biometric-confirm";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/components/app/app-data";
 import { currentService, fetchServices, type Services } from "@/lib/menu";
@@ -103,7 +103,7 @@ function Buy() {
     setBusy(false);
     if (!r.ok) {
       if (r.code === "PIN_NOT_SET") { setPinOpen(false); toast("err", "Crée d'abord ton code PIN."); router.push("/app/profil?pin=new&back=/app/acheter"); return; }
-      if (r.code.startsWith("PIN")) { setPinError(r.message); setPinOpen(true); return; }
+      if (r.code.startsWith("PIN") || r.code === "BIOMETRIC_REQUIRED") { setPinError(r.message); setPinOpen(true); return; }
       setPinOpen(false); toast("err", r.message); return;
     }
     setPinOpen(false);
@@ -239,7 +239,7 @@ function Buy() {
 
       <Sheet open={pinOpen} onClose={() => setPinOpen(false)} title="Confirmer l'achat">
         <p className="-mt-2 mb-4 text-sm text-muted">{qty} × ticket {cfg?.label}{chosen.length ? ` + ${chosen.map((e) => `${counts[e.id]} ${e.name}`).join(", ")}` : ""}{gift ? ` pour ${gift.full_name}` : ""} · <b className="text-ink">{fcfa(total)}</b></p>
-        <PinPad onComplete={(p) => buy(p)} error={pinError} busy={busy} />
+        <BiometricConfirm enabled={!!profile?.biometric_enabled} mode="send" onConfirmed={(p) => buy(p)} pinError={pinError} busy={busy} />
       </Sheet>
       <RecipientSheet title="Offrir des tickets" open={giftOpen} onClose={() => setGiftOpen(false)} onPick={(u) => { setGift(u); setGiftOpen(false); }} />
       {printed && <PrintOverlay {...printed} hours={validity} avatar={profile?.avatar} seed={profile?.id} />}

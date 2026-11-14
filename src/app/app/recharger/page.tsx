@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/components/app/app-data";
+import { Sheet } from "@/components/ui/sheet";
+import { BiometricConfirm } from "@/components/app/biometric-confirm";
 import { fcfa } from "@/lib/format";
 
 const AMOUNTS = [2000, 5000, 10000, 25000, 50000, 100000];
@@ -28,7 +30,12 @@ export default function RechargePage() {
   const [busy, setBusy] = useState(false);
   const value = custom ? parseInt(custom.replace(/\D/g, ""), 10) || 0 : amount;
 
+  // Face ID activé : confirmation avant la recharge (la base refuse sinon)
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const start = () => (profile?.biometric_enabled ? setConfirmOpen(true) : pay());
+
   async function pay() {
+    setConfirmOpen(false);
     setBusy(true);
     const r = await rpc<{ balance: number }>("simulate_recharge", { p_amount: value });
     setBusy(false);
@@ -82,10 +89,14 @@ export default function RechargePage() {
           <span>En espèces : présentez votre identifiant <b className="whitespace-nowrap">{profile?.short_code}</b> à la caisse.</span>
         </p>
 
-        <Button size="lg" block className="mt-6" loading={busy} disabled={value < 100 || value > 500000} onClick={pay}>
+        <Button size="lg" block className="mt-6" loading={busy} disabled={value < 100 || value > 500000} onClick={start}>
           Recharger {fcfa(value)}
         </Button>
       </div>
+      <Sheet open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Confirmer la recharge">
+        <p className="-mt-2 mb-5 text-sm text-muted">Recharge de <b className="text-ink">{fcfa(value)}</b></p>
+        <BiometricConfirm enabled mode="grant" onConfirmed={() => pay()} busy={busy} />
+      </Sheet>
     </main>
   );
 }
