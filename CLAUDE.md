@@ -20,6 +20,25 @@
 - Site en ligne : https://dabalix.netlify.app — déploiements Netlify : https://app.netlify.com
 - Dépôt : https://github.com/Bryan-Taffo-Stephen-Yves/dabali
 
+## Kit de démarrage (à faire au tout début d'un nouveau projet ou d'une reconstruction)
+
+Dès le « on commence », envoyer d'un coup à Bryan la liste des comptes à créer et des clés à déposer dans les secrets
+Supabase (lien direct + nom exact), pendant que Claude code en parallèle. Les services externes sont pilotés par leur API
+depuis des Edge Functions (les clés restent dans Supabase, Claude ne les voit jamais) :
+
+| Service | Secret Supabase | Sert à |
+|---|---|---|
+| Anthropic | `ANTHROPIC_API_KEY` (+ `_JEAN`) | assistants IA, Jean |
+| Green API (WhatsApp) | `GREEN_API_TOKEN_JEAN` + id/URL de l'instance dans `settings.jean` | Jean sur WhatsApp |
+| Webhook Jean | `JEAN_WEBHOOK_TOKEN` (aussi dans Green API « Webhook authorization header ») | sécurise les messages entrants |
+| ElevenLabs | `ELEVENLABS_API_KEY` (droit **Speech to Text** coché !) | notes vocales → texte |
+| Retell | `RETELL_API_KEY` + `JEAN_VOICE_TOKEN` | Jean au téléphone ; `retell-setup` configure l'agent par l'API |
+| Meta WhatsApp Cloud | (à créer tôt : validation de plusieurs jours) | boutons officiels, WhatsApp Flows (PIN masqué), rappels |
+
+Pièges déjà rencontrés : une Edge Function déjà démarrée peut garder l'ancienne valeur d'un secret → la redéployer après
+un changement de clé ; vérifier les droits d'une clé (ElevenLabs) avant de chercher un bug ; un numéro WhatsApp = une
+seule instance Green API (prévoir une puce dédiée).
+
 ## Repères techniques
 
 - Next.js 15 + Tailwind 4 + Supabase ; interface en français, FCFA, fuseau Africa/Abidjan.
