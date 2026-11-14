@@ -49,7 +49,11 @@
       "mcp__Supabase__execute_sql",
       "mcp__Supabase__apply_migration",
       "mcp__Supabase__deploy_edge_function",
-      "mcp__Supabase__generate_typescript_types"
+      "mcp__Supabase__generate_typescript_types",
+            "Bash(su postgres:*)",
+      "Bash(service postgresql:*)",
+      "Bash(timeout:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [
       "Bash(git push --force:*)",
