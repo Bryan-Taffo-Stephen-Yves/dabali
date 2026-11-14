@@ -96,7 +96,7 @@ select tests.eq((select count(*) from public.notifications where user_id = tests
 select tests.login('bob');
 select public.purchase_tickets('lunch', 1) as x \gset
 select tests.as_service();
-update public.tickets set pickup_at = now() - interval '5 minutes', prep_status = 'ready'
+update public.tickets set pickup_at = now(), prep_status = 'ready'
  where user_id = tests.uid('bob') and pickup_at is not null;
 select short_code as bob_code from public.profiles where id = tests.uid('bob') \gset
 select tests.login('agent');

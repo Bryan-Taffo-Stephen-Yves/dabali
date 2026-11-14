@@ -15,6 +15,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { PinPad } from "@/components/ui/pin-pad";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/components/app/app-data";
+import { WhatsAppLink } from "@/components/app/whatsapp-link";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function ProfilePage() {
   const [pinErr, setPinErr] = useState<string | null>(null);
   const points = profile?.points ?? 0;
   const [back, setBack] = useState<string | null>(null);
+  const [waOpen, setWaOpen] = useState(false);
 
   // Arrivée depuis un paiement ou un transfert sans code PIN : on ouvre directement la création
   useEffect(() => {
@@ -32,6 +34,7 @@ export default function ProfilePage() {
     if (q.get("pin") === "new") { setOldPin(""); setPinStep("new"); }
     const b = q.get("back");
     if (b?.startsWith("/app/")) setBack(b);
+    if (q.get("whatsapp") === "1") setWaOpen(true);
   }, []);
 
   async function toggleSeats() {
@@ -129,6 +132,7 @@ export default function ProfilePage() {
             right={<span className={clsx("h-7 w-12 rounded-full p-1 transition", profile?.notify_free_seats ? "bg-ink" : "bg-line")}>
               <span className={clsx("block size-5 rounded-full transition", profile?.notify_free_seats ? "translate-x-5 bg-lime" : "bg-white")} /></span>}
             onClick={toggleSeats} />
+          <WhatsAppLink autoOpen={waOpen} />
           <Row icon={KeyRound} label="Changer mon code PIN" hint="Il sert aussi à manger sans téléphone" onClick={() => { setPinErr(null); setPinStep("old"); }} />
           <Row icon={PhoneOff} label="J'ai perdu mon téléphone" hint="Bloquer les QR et déconnecter l'ancien appareil" onClick={() => setLostOpen(true)} />
           {profile && ["agent", "admin"].includes(profile.role) && <Row icon={ScanLine} label="Ouvrir le scanner" onClick={() => router.push("/scan")} />}
